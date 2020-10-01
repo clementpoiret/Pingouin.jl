@@ -1,6 +1,6 @@
 using DataFrames
 
-include("shapiro.jl")
+include("_shapiro.jl")
 
 """Univariate normality test.
 
