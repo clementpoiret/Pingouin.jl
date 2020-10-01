@@ -1,0 +1,10 @@
+name = "Pingouin"
+uuid = "61ac1d4c-5a1f-4019-949c-7919748f8c44"
+authors = ["Clément POIRET <poiret.clement@outlook.fr>"]
+version = "0.0.1"
+
+[deps]
+CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
+SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
