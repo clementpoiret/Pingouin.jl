@@ -68,7 +68,14 @@ References
 
 Examples
 --------
-1. Shapiro-Wilk test on a 1D array.
+1. Shapiro-Wilk test on a 1D array
+>>> dataset = DataFrame(CSV.File("Pingouin/datasets/anova.csv"))
+>>> Pingouin.normality(dataset["Pain Threshold"])
+1×3 DataFrame
+│ Row │ W         │ pval     │ normal │
+│     │ Float64   │ Float64  │ Bool   │
+├─────┼───────────┼──────────┼────────┤
+│ 1   │ -0.842541 │ 0.800257 │ 1      │
 
 2. Long-format dataframe
 
@@ -78,22 +85,18 @@ Examples
 Pre   0.967718  0.478773    True
 Post  0.940728  0.095157    True
 """
-function normality(data, dv=nothing, group=nothing, method::String="shapiro", alpha::Float64=.05)
+function normality(data, dv=nothing, group=nothing, method::String="shapiro", α::Float64=0.05)
     # todo: handle series and arrays
     # todo: handle long format
 
-    print("normality test for data, on $group using $method, at p=$alpha")
-
-    if isa(dataset["Subject"], Array{})
-        # convert to dataframe
+    # print("normality test for data, on $group using $method, at p=$alpha")
+    func = eval(Meta.parse(method))
+    if isa(data, Array{})
+        return func(data, α)
     end
-    colnames = ["W", "pval"]
-
-    @assert group in names(data)
-    @assert dv in names(data)
 end
 
-function _shapiro(x::Array{}, α=0.05::Float64)::DataFrame
+function shapiro(x::Array{}, α::Float64=0.05)::DataFrame
     n = length(x)
 
     if n <= 3

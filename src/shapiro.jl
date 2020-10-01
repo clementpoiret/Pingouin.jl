@@ -13,7 +13,7 @@ Journal of the Royal Statistical Society. Series C (Applied Statistics), 1995, v
 
 Calculates the shapiro wilk statistic of a given data array.
 """
-function shapiro_wilk(x::Array{}, α=0.05::Float64)::Tuple{Bool,Float64,Float64}
+function shapiro_wilk(x::Array{}, α::Float64=0.05)::Tuple{Bool,Float64,Float64}
     if length(x) < 1 || isempty(x)
         throw(DomainError(x, "'x' is empty."))
     end
