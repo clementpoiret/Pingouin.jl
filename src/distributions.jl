@@ -77,26 +77,72 @@ Examples
 ├─────┼───────────┼──────────┼────────┤
 │ 1   │ -0.842541 │ 0.800257 │ 1      │
 
-2. Long-format dataframe
+2. Wide-format dataframe
 
->>> data = ...
->>> pg.normality(data, dv='Performance', group='Time')
-             W      pval  normal
-Pre   0.967718  0.478773    True
-Post  0.940728  0.095157    True
+>>> dataset = DataFrame(CSV.File("Pingouin/datasets/mediation.csv"))
+>>> Pingouin.normality(dataset)
+│ Row │ dv     │ W       │ pval        │ normal │
+│     │ Symbol │ Float64 │ Float64     │ Bool   │
+├─────┼────────┼─────────┼─────────────┼────────┤
+│ 1   │ X      │ 2.80237 │ 0.00253646  │ 0      │
+│ 2   │ M      │ 1.85236 │ 0.0319872   │ 0      │
+│ 3   │ Y      │ 2.00508 │ 0.0224772   │ 0      │
+│ 4   │ Mbin   │ 7.56875 │ 1.88738e-14 │ 0      │
+│ 5   │ Ybin   │ 7.55459 │ 2.09832e-14 │ 0      │
+│ 6   │ W1     │ 2.73591 │ 0.00311037  │ 0      │
+│ 7   │ W2     │ 8.22676 │ 1.11022e-16 │ 0      │
+
+3. Long-format dataframe
+>>> dataset = DataFrame(CSV.File("Pingouin/datasets/rm_anova2.csv"))
+>>> Pingouin.normality(dataset, dv=:Performance, group=:Time)
+│ Row │ Time   │ W         │ pval      │ normal │
+│     │ String │ Float64   │ Float64   │ Bool   │
+├─────┼────────┼───────────┼───────────┼────────┤
+│ 1   │ Pre    │ 0.0532374 │ 0.478771  │ 1      │
+│ 2   │ Post   │ 1.30965   │ 0.0951576 │ 1      │
+
 """
-function normality(data, dv=nothing, group=nothing, method::String="shapiro", α::Float64=0.05)
-    # todo: handle series and arrays
-    # todo: handle long format
-
-    # print("normality test for data, on $group using $method, at p=$alpha")
+function normality(data; dv=nothing, group=nothing, method::String="shapiro", α::Float64=0.05)
     func = eval(Meta.parse(method))
     if isa(data, Array{})
         return func(data, α)
+    else 
+        if dv === nothing && group === nothing
+            # wide dataframe
+            numdata = data[ :, colwise(x -> (eltype(x) <: Number), data)]
+
+            result = DataFrame()
+            for column in propertynames(numdata)
+                r = func(numdata[column], α)
+                insertcols!(r, 1, :dv => column)
+                append!(result, r)
+            end
+
+            return result
+            else
+            # long dataframe
+            group = Symbol(group)
+            dv = Symbol(dv)
+
+            @assert group in propertynames(data)
+            @assert dv in propertynames(data)
+            grp = groupby(data, group, sort=false)
+
+            result = DataFrame()
+            for subdf in grp
+                r = func(DataFrame(subdf)[dv], α)
+    insertcols!(r, 1, group => subdf[1, group])
+                append!(result, r)
+    end
+
+            return result
+        end
     end
 end
-
+    
 function shapiro(x::Array{}, α::Float64=0.05)::DataFrame
+    x = x[@. !isnan.(x)]
+    
     n = length(x)
 
     if n <= 3

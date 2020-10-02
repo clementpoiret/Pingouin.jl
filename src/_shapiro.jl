@@ -29,10 +29,11 @@ function shapiro_wilk(x::Array{}, α::Float64=0.05)::Tuple{Bool,Float64,Float64}
     mi = [quantile.(Normal(), (((i) - (3.0 / 8.0)) / (n + .25))) for i in 1:n]
     miSq = sum(mi.^2)
 
-    if kurtosis(x) > 3
+    k = kurtosis(x)
+    if k > 3
         # kurtosis is higher than 3 -> Leptokurtic Distribution
         # Perform Shapiro-Francia test
-
+        print("[INFO] Using Shapiro-Francia for Leptokurtic distributions (kurtosis: $k)")
         weights = mi ./ sqrt(miSq)
         W = (sum(weights .* x)^2) / sum((x .- mean(x)).^2)
 
