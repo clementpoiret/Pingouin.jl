@@ -131,7 +131,7 @@ function normality(data; dv=nothing, group=nothing, method::String="shapiro", α
             result = DataFrame()
             for subdf in grp
                 r = func(DataFrame(subdf)[dv], α)
-    insertcols!(r, 1, group => subdf[1, group])
+                insertcols!(r, 1, group => subdf[1, group])
                 append!(result, r)
     end
 
