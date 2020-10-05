@@ -86,7 +86,7 @@ Univariate normality test.
     Examples
     --------
     1. Shapiro-Wilk test on a 1D array
-    >>> dataset = DataFrame(CSV.File("Pingouin/datasets/anova.csv"))
+    >>> dataset = Pingouin.read_dataset("anova")
     >>> Pingouin.normality(dataset["Pain Threshold"])
     1×3 DataFrame
     │ Row │ W         │ pval     │ normal │
@@ -96,7 +96,7 @@ Univariate normality test.
 
     2. Wide-format dataframe using Jarque-Bera test
 
-    >>> dataset = DataFrame(CSV.File("Pingouin/datasets/mediation.csv"))
+    >>> dataset = Pingouin.read_dataset("mediation")
     >>> Pingouin.normality(dataset, method="jarque_bera")
     │ Row │ dv     │ W        │ pval        │ normal │
     │     │ Symbol │ Float64  │ Float64     │ Bool   │
@@ -111,7 +111,7 @@ Univariate normality test.
 
     3. Long-format dataframe
 
-    >>> dataset = DataFrame(CSV.File("Pingouin/datasets/rm_anova2.csv"))
+    >>> dataset = Pingouin.read_dataset("rm_anova2")
     >>> Pingouin.normality(dataset, dv=:Performance, group=:Time)
     │ Row │ Time   │ W         │ pval      │ normal │
     │     │ String │ Float64   │ Float64   │ Bool   │
@@ -288,7 +288,7 @@ Test equality of variance.
     --------
     1. Levene test on a wide-format dataframe
 
-    >>> data = DataFrame(CSV.File("Pingouin/datasets/mediation.csv"))
+    >>> data = Pingouin.read_dataset("mediation")
     >>> Pingouin.homoscedasticity(data[["X", "Y", "M"]])
     1×3 DataFrame
     │ Row │ W       │ pval     │ equal_var │
@@ -308,7 +308,7 @@ Test equality of variance.
 
     3. Long-format dataframe
 
-    >>> data = DataFrame(CSV.File("Pingouin/datasets/rm_anova2.csv"))
+    >>> data = Pingouin.read_dataset("rm_anova2")
     >>> Pingouin.homoscedasticity(data, dv="Performance", group="Time")
     1×3 DataFrame
     │ Row │ W       │ pval      │ equal_var │
