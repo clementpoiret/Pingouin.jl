@@ -4,13 +4,13 @@ using Statistics
 function levene(samples; center::String="median", α::Float64=0.05) 
     k = length(samples)
     if k < 2
-        throw(DomainError(x, "Must enter at least two input sample arrays."))
+        throw(DomainError(samples, "Must enter at least two input sample arrays."))
     end
     Ni = zeros(k)
     Yci = zeros(k)
 
     if !(center in ["mean","median","trimmed"])
-        throw(DomainError(x, "Invalid value for argument <center>."))
+        throw(DomainError(samples, "Invalid value for argument <center>."))
     end
 
     if center == "median"
@@ -58,4 +58,35 @@ function levene(samples; center::String="median", α::Float64=0.05)
     H = (α >= P)
     
     return H, W, P
+end
+
+function bartlett(samples; α::Float64=0.05)  
+    k = length(samples)
+    if k < 2
+        throw(DomainError(samples, "Must enter at least two input sample arrays."))
+    end
+
+    for sample in samples
+        if length(sample) == 0
+            throw(DomainError(samples, "Samples can't be empty."))
+        end
+    end
+
+    Ni = zeros(k)
+    ssq = zeros(k)
+    for j in 1:k
+        Ni[j] = length(samples[j])
+        ssq[j] = var(samples[j])
+    end
+    Ntot = sum(Ni)
+    spsq = sum((Ni .- 1) .* ssq) ./ (Ntot .- k)
+    numer = (Ntot .- k) .* log(spsq) .- sum((Ni .- 1.0) .* (@. log(ssq)))
+    denom = 1.0 + 1.0 / (3 * (k - 1)) * ((sum(1.0 ./ (Ni .- 1.0))) - 1.0 / (Ntot - k))
+
+    T = numer / denom
+    d = Chisq(k - 1)
+    P = 1 - cdf(d, T)
+    H = (α >= P)
+
+    return H, T, P
 end

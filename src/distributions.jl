@@ -2,7 +2,7 @@ using DataFrames
 using HypothesisTests
 
 include("_shapiro.jl")
-include("_levene.jl")
+include("_homoscedasticity.jl")
 
 """
 Univariate normality test.
@@ -203,24 +203,23 @@ Test equality of variance.
 
     Parameters
     ----------
-    data : :py:class:`pandas.DataFrame`, list or dict
-        Iterable. Can be either a list / dictionnary of iterables
-        or a wide- or long-format pandas dataframe.
+    data : `DataFrame` or array
+        Iterable. Can be either an Array iterables or a wide- or long-format
+        pandas dataframe.
     dv : str
         Dependent variable (only when ``data`` is a long-format dataframe).
     group : str
         Grouping variable (only when ``data`` is a long-format dataframe).
     method : str
         Statistical test. `'levene'` (default) performs the Levene test
-        using :py:func:`scipy.stats.levene`, and `'bartlett'` performs the
-        Bartlett test using :py:func:`scipy.stats.bartlett`.
+        and `'bartlett'` performs the Bartlett test.
         The former is more robust to departure from normality.
     alpha : float
         Significance level.
 
     Returns
     -------
-    stats : :py:class:`pandas.DataFrame`
+    stats : `DataFrame`
 
         * ``'W/T'``: Test statistic ('W' for Levene, 'T' for Bartlett)
         * ``'pval'``: p-value
@@ -289,29 +288,87 @@ Test equality of variance.
     --------
     1. Levene test on a wide-format dataframe
 
-    >>> import numpy as np
-    >>> import pingouin as pg
-    >>> data = pg.read_dataset('mediation')
-    >>> pg.homoscedasticity(data[['X', 'Y', 'M']])
-                   W      pval  equal_var
-    levene  0.434861  0.999997       True
+    >>> data = DataFrame(CSV.File("Pingouin/datasets/mediation.csv"))
+    >>> Pingouin.homoscedasticity(data[["X", "Y", "M"]])
+    1×3 DataFrame
+    │ Row │ W       │ pval     │ equal_var │
+    │     │ Float64 │ Float64  │ Bool      │
+    ├─────┼─────────┼──────────┼───────────┤
+    │ 1   │ 1.17352 │ 0.310707 │ 1         │
 
-    2. Bartlett test using a list of iterables
+    2. Bartlett test using an array of arrays
 
-    >>> data = [[4, 8, 9, 20, 14], np.array([5, 8, 15, 45, 12])]
-    >>> pg.homoscedasticity(data, method="bartlett", alpha=.05)
-                     T      pval  equal_var
-    bartlett  2.873569  0.090045       True
+    >>> data = [[4, 8, 9, 20, 14], [5, 8, 15, 45, 12]]
+    >>> Pingouin.homoscedasticity(data, method="bartlett", α=.05)
+    1×3 DataFrame
+    │ Row │ T       │ pval     │ equal_var │
+    │     │ Float64 │ Float64  │ Bool      │
+    ├─────┼─────────┼──────────┼───────────┤
+    │ 1   │ 2.87357 │ 0.090045 │ 1         │
 
     3. Long-format dataframe
 
-    >>> data = pg.read_dataset('rm_anova2')
-    >>> pg.homoscedasticity(data, dv='Performance', group='Time')
-                   W      pval  equal_var
-    levene  3.192197  0.079217       True
+    >>> data = DataFrame(CSV.File("Pingouin/datasets/rm_anova2.csv"))
+    >>> Pingouin.homoscedasticity(data, dv="Performance", group="Time")
+    1×3 DataFrame
+    │ Row │ W       │ pval      │ equal_var │
+    │     │ Float64 │ Float64   │ Bool      │
+    ├─────┼─────────┼───────────┼───────────┤
+    │ 1   │ 3.1922  │ 0.0792169 │ 1         │
 """
 function homoscedasticity(data; dv=nothing, group=nothing, method::String="levene", α::Float64=0.05)
-    H, W, P = levene(data, center="median", α=α)
+    @assert method in ["levene", "bartlett"]
+    func = eval(Meta.parse(method))
 
-    return DataFrame(W=W, pval=P, normal=!H)
+    if isa(data, Array{})
+        H, W, P = func(data, α=α)
+        if method == "levene"
+            return DataFrame(W=W, pval=P, equal_var=!H)
+        elseif method == "bartlett"
+            return DataFrame(T=W, pval=P, equal_var=!H)
+        end
+    else
+        if dv === nothing && group === nothing
+            # Wide format
+            numdata = data[ :, colwise(x -> (eltype(x) <: Number), data)]
+
+            k = length(names(data))
+            if k < 2
+                throw(DomainError(data, "There should be at least 2 lists"))
+            end
+
+            samples = []
+            for (i, feature) in enumerate(propertynames(numdata))
+                insert!(samples, i, data[feature])
+            end
+
+            H, W, P = func(samples, α=α)
+            if method == "levene"
+                return DataFrame(W=W, pval=P, equal_var=!H)
+            elseif method == "bartlett"
+                return DataFrame(T=W, pval=P, equal_var=!H)
+            end
+        else
+            # long format
+            group = Symbol(group)
+            dv = Symbol(dv)
+
+            @assert group in propertynames(data)
+            @assert dv in propertynames(data)
+
+            grp = groupby(data, group, sort=false)
+            
+            samples = []
+            for (i, subdf) in enumerate(grp)
+                insert!(samples, i, DataFrame(subdf)[dv])
+            end
+
+            H, W, P = func(samples, α=α)
+            if method == "levene"
+                return DataFrame(W=W, pval=P, equal_var=!H)
+            elseif method == "bartlett"
+                return DataFrame(T=W, pval=P, equal_var=!H)
+            end
+        end
+    end
 end
