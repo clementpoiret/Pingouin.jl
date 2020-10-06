@@ -1,6 +1,7 @@
 using DataFrames
 using Distributions
 using HypothesisTests
+using LinearAlgebra
 using StatsBase
 
 include("_shapiro.jl")
@@ -485,4 +486,275 @@ function homoscedasticity(data; dv=nothing, group=nothing, method::String="leven
             end
         end
     end
+end
+
+
+"""Mauchly and JNS test for sphericity.
+
+Parameters
+----------
+data : :py:class:`pandas.DataFrame`
+    DataFrame containing the repeated measurements.
+    Both wide and long-format dataframe are supported for this function.
+    To test for an interaction term between two repeated measures factors
+    with a wide-format dataframe, ``data`` must have a two-levels
+    :py:class:`pandas.MultiIndex` columns.
+dv : string
+    Name of column containing the dependent variable (only required if
+    ``data`` is in long format).
+within : string
+    Name of column containing the within factor (only required if ``data``
+    is in long format).
+    If ``within`` is a list with two strings, this function computes
+    the epsilon factor for the interaction between the two within-subject
+    factor.
+subject : string
+    Name of column containing the subject identifier (only required if
+    ``data`` is in long format).
+method : str
+    Method to compute sphericity:
+
+    * `'jns'`: John, Nagao and Sugiura test.
+    * `'mauchly'`: Mauchly test (default).
+
+alpha : float
+    Significance level
+
+Returns
+-------
+spher : boolean
+    True if data have the sphericity property.
+W : float
+    Test statistic.
+chi2 : float
+    Chi-square statistic.
+dof : int
+    Degrees of freedom.
+pval : float
+    P-value.
+
+Raises
+------
+ValueError
+    When testing for an interaction, if both within-subject factors have
+    more than 2 levels (not yet supported in Pingouin).
+
+See Also
+--------
+epsilon : Epsilon adjustement factor for repeated measures.
+homoscedasticity : Test equality of variance.
+normality : Univariate normality test.
+
+Notes
+-----
+The **Mauchly** :math:`W` statistic [1]_ is defined by:
+
+.. math::
+
+    W = \\frac{\\prod \\lambda_j}{(\\frac{1}{k-1} \\sum \\lambda_j)^{k-1}}
+
+where :math:`\\lambda_j` are the eigenvalues of the population
+covariance matrix (= double-centered sample covariance matrix) and
+:math:`k` is the number of conditions.
+
+From then, the :math:`W` statistic is transformed into a chi-square
+score using the number of observations per condition :math:`n`
+
+.. math:: f = \\frac{2(k-1)^2+k+1}{6(k-1)(n-1)}
+.. math:: \\chi_w^2 = (f-1)(n-1) \\text{log}(W)
+
+The p-value is then approximated using a chi-square distribution:
+
+.. math:: \\chi_w^2 \\sim \\chi^2(\\frac{k(k-1)}{2}-1)
+
+The **JNS** :math:`V` statistic ([2]_, [3]_, [4]_) is defined by:
+
+.. math::
+
+    V = \\frac{(\\sum_j^{k-1} \\lambda_j)^2}{\\sum_j^{k-1} \\lambda_j^2}
+
+.. math:: \\chi_v^2 = \\frac{n}{2}  (k-1)^2 (V - \\frac{1}{k-1})
+
+and the p-value approximated using a chi-square distribution
+
+.. math:: \\chi_v^2 \\sim \\chi^2(\\frac{k(k-1)}{2}-1)
+
+Missing values are automatically removed from ``data`` (listwise deletion).
+
+References
+----------
+.. [1] Mauchly, J. W. (1940). Significance test for sphericity of a normal
+       n-variate distribution. The Annals of Mathematical Statistics,
+       11(2), 204-209.
+
+.. [2] Nagao, H. (1973). On some test criteria for covariance matrix.
+       The Annals of Statistics, 700-709.
+
+.. [3] Sugiura, N. (1972). Locally best invariant test for sphericity and
+       the limiting distributions. The Annals of Mathematical Statistics,
+       1312-1316.
+
+.. [4] John, S. (1972). The distribution of a statistic used for testing
+       sphericity of normal distributions. Biometrika, 59(1), 169-173.
+
+See also http://www.real-statistics.com/anova-repeated-measures/sphericity/
+
+Examples
+--------
+Mauchly test for sphericity using a wide-format dataframe
+
+>>> import pandas as pd
+>>> import pingouin as pg
+>>> data = pd.DataFrame({'A': [2.2, 3.1, 4.3, 4.1, 7.2],
+...                      'B': [1.1, 2.5, 4.1, 5.2, 6.4],
+...                      'C': [8.2, 4.5, 3.4, 6.2, 7.2]})
+>>> spher, W, chisq, dof, pval = pg.sphericity(data)
+>>> print(spher, round(W, 3), round(chisq, 3), dof, round(pval, 3))
+True 0.21 4.677 2 0.096
+
+John, Nagao and Sugiura (JNS) test
+
+>>> round(pg.sphericity(data, method='jns')[-1], 3)  # P-value only
+0.046
+
+Now using a long-format dataframe
+
+>>> data = pg.read_dataset('rm_anova2')
+>>> data.head()
+   Subject Time   Metric  Performance
+0        1  Pre  Product           13
+1        2  Pre  Product           12
+2        3  Pre  Product           17
+3        4  Pre  Product           12
+4        5  Pre  Product           19
+
+Let's first test sphericity for the *Time* within-subject factor
+
+>>> pg.sphericity(data, dv='Performance', subject='Subject',
+...            within='Time')
+(True, nan, nan, 1, 1.0)
+
+Since *Time* has only two levels (Pre and Post), the sphericity assumption
+is necessarily met.
+
+The *Metric* factor, however, has three levels:
+
+>>> round(pg.sphericity(data, dv='Performance', subject='Subject',
+...                     within=['Metric'])[-1], 3)
+0.878
+
+The p-value value is very large, and the test therefore indicates that
+there is no violation of sphericity.
+
+Now, let's calculate the epsilon for the interaction between the two
+repeated measures factor. The current implementation in Pingouin only works
+if at least one of the two within-subject factors has no more than two
+levels.
+
+>>> spher, _, chisq, dof, pval = pg.sphericity(data, dv='Performance',
+...                                            subject='Subject',
+...                                            within=['Time', 'Metric'])
+>>> print(spher, round(chisq, 3), dof, round(pval, 3))
+True 3.763 2 0.152
+
+Here again, there is no violation of sphericity acccording to Mauchly's
+test.
+
+Alternatively, we could use a wide-format dataframe with two column
+levels:
+
+>>> # Pivot from long-format to wide-format
+>>> piv = data.pivot_table(index='Subject', columns=['Time', 'Metric'],
+...                        values='Performance')
+>>> piv.head()
+Time      Post                   Pre
+Metric  Action Client Product Action Client Product
+Subject
+1           34     30      18     17     12      13
+2           30     18       6     18     19      12
+3           32     31      21     24     19      17
+4           40     39      18     25     25      12
+5           27     28      18     19     27      19
+
+>>> spher, _, chisq, dof, pval = pg.sphericity(piv)
+>>> print(spher, round(chisq, 3), dof, round(pval, 3))
+True 3.763 2 0.152
+
+which gives the same output as the long-format dataframe.
+"""
+function sphericity(data; dv::Union{Nothing, String, Symbol}=nothing, 
+                          within::Union{Nothing, String, Symbol}=nothing, 
+                          subject::Union{Nothing, String, Symbol}=nothing,
+                          method::String="mauchly",
+                          α=.05)
+    @assert isa(data, DataFrame)
+
+    if all([(v !== nothing) for v in [dv, within, subject]])
+        # long-to-wide-rm
+    end
+
+    # todo: dropna
+
+    # todo: Support for two-way factor of shape (2, N)
+    # data = _check_multilevel_rm(data, func='mauchly')
+
+    # From here, we work only with one-way design
+    n, k = nrow(data), ncol(data)
+    d = k - 1
+
+    # Sphericity is always met with only two repeated measures.
+    if k <= 2
+        return true, NaN, NaN, 1, 1.
+    end
+
+    # Compute dof of the test
+    ddof = (d * (d + 1)) / 2 - 1
+    ddof = ddof == 0 ? 1 : 0
+
+    if method.lower() == "mauchly"
+        # Method 1. Contrast matrix. Similar to R & Matlab implementation.
+        # Only works for one-way design or two-way design with shape (2, N).
+        # 1 - Compute the successive difference matrix Z.
+        #     (Note that the order of columns does not matter.)
+        # 2 - Find the contrast matrix that M so that data * M = Z
+        # 3 - Performs the QR decomposition of this matrix (= contrast matrix)
+        # 4 - Compute sample covariance matrix S
+        # 5 - Compute Mauchly's statistic
+        # Z = data.diff(axis=1).dropna(axis=1)
+        # M = np.linalg.lstsq(data, Z, rcond=None)[0]
+        # C, _ = np.linalg.qr(M)
+        # S = data.cov()
+        # A = C.T.dot(S).dot(C)
+        # logW = np.log(np.linalg.det(A)) - d * np.log(np.trace(A / d))
+        # W = np.exp(logW)
+
+        # Method 2. Eigenvalue-based method. Faster.
+        # 1 - Estimate the population covariance (= double-centered)
+        # 2 - Calculate n-1 eigenvalues
+        # 3 - Compute Mauchly's statistic
+        S = cov(convert(Matrix, data))
+        S_pop = S .- mean(S, dims=2) .- mean(S, dims=1) .+ mean(S)
+        eig = eigvals(S_pop)[2:end]
+        eig = eig[eig .> 0.001]  # Additional check to remove very low eig
+        W = prod(eig) / (sum(eig) / d)^d
+        logW = log(W)
+
+        # Compute chi-square and p-value (adapted from the ezANOVA R package)
+        f = 1 - (2 * d^2 + d + 2) / (6 * d * (n - 1))
+        w2 = ((d + 2) * (d - 1) * (d - 2) * (2 * d^3 + 6 * d^2 + 3 * k + 2) / (288 * ((n - 1) * d * f)^2))
+        chi_sq = -(n - 1) * f * logW
+        p1 = 1 - cdf(Chisq(ddof), chi_sq)
+        p2 = 1 - cdf(Chisq(ddof + 4), chi_sq)
+
+        pval = p1 + w2 * (p2 - p1)
+    else
+        # Method = JNS
+        # eps = epsilon(data, correction='gg')
+        # W = eps * d
+        # chi_sq = 0.5 * n * d**2 * (W - 1 / d)
+        # pval = scipy.stats.chi2.sf(chi_sq, ddof)
+    end
+    spher = pval > α ? true : False
+
+    return DataFrame(spher = spher, W = W, chi2 = chi_sq, dof = ddof, pval=pval)
 end
