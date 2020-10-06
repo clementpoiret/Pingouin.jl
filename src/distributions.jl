@@ -1,4 +1,5 @@
 using DataFrames
+using Distributions
 using HypothesisTests
 using StatsBase
 
@@ -60,6 +61,60 @@ function gzscore(x::Array)::Array
     gstd = exp(sqrt(sum((@. log(x ./ geo_mean)).^2) / (length(x) - 1)))
     # Geometric z-score
     return @. log(x ./ geo_mean) ./ log(gstd)
+end
+
+
+"""
+Anderson-Darling test of distribution.
+
+Parameters
+----------
+sample1, sample2,... : array_like
+    Array of sample data. May be different lengths.
+dist : Union{String, Distribution}
+    Distribution ("norm", "expon", "logistic", "gumbel")
+
+Returns
+-------
+H : boolean
+    True if data comes from this distribution.
+P : float
+    The significance levels for the corresponding critical values in %.
+    (See :`HypothesisTests.OneSampleADTest` for more details)
+
+Examples
+--------
+1. Test that an array comes from a normal distribution
+
+>>> x = [2.3, 5.1, 4.3, 2.6, 7.8, 9.2, 1.4]
+>>> Pingouin.anderson(x, dist="norm")
+(false, 55.34147178627504)
+
+2. Test that an array comes from a custom distribution
+
+>>> x = [2.3, 5.1, 4.3, 2.6, 7.8, 9.2, 1.4]
+>>> Pingouin.anderson(x, dist=Normal(1,5))
+(false, 0.04755873570126501)
+"""
+function anderson(x::Array; dist::Union{String, Distribution}=Normal(), α::Float64=0.05)
+    # todo: implement support for multiple samples
+    if isa(dist, String)
+        if dist == "norm"
+            dist = Normal()
+        elseif dist == "expon"
+            dist = Exponential()
+        elseif dist == "logistic"
+            dist = Logistic()
+        elseif dist == "gumbel"
+            dist = Gumbel()
+        end
+    end
+
+    andersontest = OneSampleADTest(x, dist)
+    P = pvalue(andersontest)
+    H = P < α
+
+    return !H, P
 end
 
 
