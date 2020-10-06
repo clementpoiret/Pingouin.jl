@@ -1,8 +1,67 @@
 using DataFrames
 using HypothesisTests
+using StatsBase
 
 include("_shapiro.jl")
 include("_homoscedasticity.jl")
+
+"""
+Geometric standard (Z) score.
+
+Parameters
+----------
+x : array_like
+    Array of raw values
+
+Returns
+-------
+gzscore : array_like
+    Array of geometric z-scores (same shape as x)
+
+Notes
+-----
+Geometric Z-scores are better measures of dispersion than arithmetic
+z-scores when the sample data come from a log-normally distributed
+population [1]_.
+
+Given the raw scores :math:`x`, the geometric mean :math:`\\mu_g` and
+the geometric standard deviation :math:`\\sigma_g`,
+the standard score is given by the formula:
+
+.. math:: z = \\frac{log(x) - log(\\mu_g)}{log(\\sigma_g)}
+
+References
+----------
+.. [1] https://en.wikipedia.org/wiki/Geometric_standard_deviation
+
+Examples
+--------
+Standardize a lognormal-distributed vector:
+
+>>> raw = [1,4,5,4,1,2,5,8,6,6,9,8,3]
+>>> z = Pingouin.gzscore(raw)
+13-element Array{Float64,1}:
+ -1.8599725059104346
+  0.03137685347921089
+  0.3358161014965816
+  0.03137685347921089
+ -1.8599725059104346
+  ⋮
+  0.5845610789821727
+  0.5845610789821727
+  1.1377453044851344
+  0.9770515331740336
+ -0.3611136007126501
+"""
+function gzscore(x::Array)::Array
+    # Geometric mean
+    geo_mean = geomean(x)
+    # Geometric standard deviation
+    gstd = exp(sqrt(sum((@. log(x ./ geo_mean)).^2) / (length(x) - 1)))
+    # Geometric z-score
+    return @. log(x ./ geo_mean) ./ log(gstd)
+end
+
 
 """
 Univariate normality test.
