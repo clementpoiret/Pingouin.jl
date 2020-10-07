@@ -431,7 +431,11 @@ Test equality of variance.
     ├─────┼─────────┼───────────┼───────────┤
     │ 1   │ 3.1922  │ 0.0792169 │ 1         │
 """
-function homoscedasticity(data; dv=nothing, group=nothing, method::String="levene", α::Float64=0.05)
+function homoscedasticity(data;
+                          dv::Union{String, Nothing}=nothing,
+                          group::Union{String, Nothing}=nothing,
+                          method::String="levene",
+                          α::Float64=0.05)
     @assert method in ["levene", "bartlett"]
     func = eval(Meta.parse(method))
 
@@ -682,13 +686,11 @@ True 3.763 2 0.152
 
 which gives the same output as the long-format dataframe.
 """
-function sphericity(data; dv::Union{Nothing, String, Symbol}=nothing, 
+function sphericity(data::DataFrame; dv::Union{Nothing, String, Symbol}=nothing, 
                           within::Union{Nothing, String, Symbol}=nothing, 
                           subject::Union{Nothing, String, Symbol}=nothing,
                           method::String="mauchly",
                           α=.05)
-    @assert isa(data, DataFrame)
-
     if all([(v !== nothing) for v in [dv, within, subject]])
         # long-to-wide-rm
     end
@@ -699,7 +701,7 @@ function sphericity(data; dv::Union{Nothing, String, Symbol}=nothing,
     # data = _check_multilevel_rm(data, func='mauchly')
 
     # From here, we work only with one-way design
-    n, k = nrow(data), ncol(data)
+    n, k = size(data)
     d = k - 1
 
     # Sphericity is always met with only two repeated measures.
@@ -757,4 +759,197 @@ function sphericity(data; dv::Union{Nothing, String, Symbol}=nothing,
     spher = pval > α ? true : False
 
     return DataFrame(spher = spher, W = W, chi2 = chi_sq, dof = ddof, pval=pval)
+end
+
+
+"""
+Epsilon adjustement factor for repeated measures.
+
+Parameters
+----------
+data : `DataFrame`
+    DataFrame containing the repeated measurements.
+    Both wide and long-format dataframe are supported for this function.
+    To test for an interaction term between two repeated measures factors
+    with a wide-format dataframe, ``data`` must have a two-levels
+    `MultiIndex` columns.
+dv : string
+    Name of column containing the dependent variable (only required if
+    ``data`` is in long format).
+within : string
+    Name of column containing the within factor (only required if ``data``
+    is in long format).
+    If ``within`` is a list with two strings, this function computes
+    the epsilon factor for the interaction between the two within-subject
+    factor.
+subject : string
+    Name of column containing the subject identifier (only required if
+    ``data`` is in long format).
+correction : string
+    Specify the epsilon version:
+
+    * ``'gg'``: Greenhouse-Geisser
+    * ``'hf'``: Huynh-Feldt
+    * ``'lb'``: Lower bound
+
+Returns
+-------
+eps : float
+    Epsilon adjustement factor.
+
+See Also
+--------
+sphericity : Mauchly and JNS test for sphericity.
+homoscedasticity : Test equality of variance.
+
+Notes
+-----
+The lower bound epsilon is:
+
+.. math:: lb = \\frac{1}{\\text{dof}},
+
+where the degrees of freedom :math:`\\text{dof}` is the number of groups
+:math:`k` minus 1 for one-way design and :math:`(k_1 - 1)(k_2 - 1)`
+for two-way design
+
+The Greenhouse-Geisser epsilon is given by:
+
+.. math::
+
+    \\epsilon_{GG} = \\frac{k^2(\\overline{\\text{diag}(S)} -
+    \\overline{S})^2}{(k-1)(\\sum_{i=1}^{k}\\sum_{j=1}^{k}s_{ij}^2 -
+    2k\\sum_{j=1}^{k}\\overline{s_i}^2 + k^2\\overline{S}^2)}
+
+where :math:`S` is the covariance matrix, :math:`\\overline{S}` the
+grandmean of S and :math:`\\overline{\\text{diag}(S)}` the mean of all the
+elements on the diagonal of S (i.e. mean of the variances).
+
+The Huynh-Feldt epsilon is given by:
+
+.. math::
+
+    \\epsilon_{HF} = \\frac{n(k-1)\\epsilon_{GG}-2}{(k-1)
+    (n-1-(k-1)\\epsilon_{GG})}
+
+where :math:`n` is the number of observations.
+
+Missing values are automatically removed from data (listwise deletion).
+
+Examples
+--------
+Using a wide-format dataframe
+
+>>> data = DataFrame(A = [2.2, 3.1, 4.3, 4.1, 7.2],
+                     B = [1.1, 2.5, 4.1, 5.2, 6.4],
+                     C = [8.2, 4.5, 3.4, 6.2, 7.2])
+>>> gg = Pingouin.epsilon(data, correction="gg")
+0.5587754577585018
+>>> hf = Pingouin.epsilon(data, correction="hf")
+0.6223448311539789
+>>> lb = Pingouin.epsilon(data, correction="lb")
+0.5
+
+Now using a long-format dataframe
+
+>>> data = pg.read_dataset('rm_anova2')
+>>> data.head()
+   Subject Time   Metric  Performance
+0        1  Pre  Product           13
+1        2  Pre  Product           12
+2        3  Pre  Product           17
+3        4  Pre  Product           12
+4        5  Pre  Product           19
+
+Let's first calculate the epsilon of the *Time* within-subject factor
+
+>>> pg.epsilon(data, dv='Performance', subject='Subject',
+...            within='Time')
+1.0
+
+Since *Time* has only two levels (Pre and Post), the sphericity assumption
+is necessarily met, and therefore the epsilon adjustement factor is 1.
+
+The *Metric* factor, however, has three levels:
+
+>>> round(pg.epsilon(data, dv='Performance', subject='Subject',
+...                  within=['Metric']), 3)
+0.969
+
+The epsilon value is very close to 1, meaning that there is no major
+violation of sphericity.
+
+Now, let's calculate the epsilon for the interaction between the two
+repeated measures factor:
+
+>>> round(pg.epsilon(data, dv='Performance', subject='Subject',
+...                  within=['Time', 'Metric']), 3)
+0.727
+
+Alternatively, we could use a wide-format dataframe with two column
+levels:
+
+>>> # Pivot from long-format to wide-format
+>>> piv = data.pivot_table(index='Subject', columns=['Time', 'Metric'],
+...                        values='Performance')
+>>> piv.head()
+Time      Post                   Pre
+Metric  Action Client Product Action Client Product
+Subject
+1           34     30      18     17     12      13
+2           30     18       6     18     19      12
+3           32     31      21     24     19      17
+4           40     39      18     25     25      12
+5           27     28      18     19     27      19
+
+>>> round(pg.epsilon(piv), 3)
+0.727
+
+which gives the same epsilon value as the long-format dataframe.
+"""
+function epsilon(data::DataFrame;
+                 dv::Union{String, Nothing}=nothing,
+                 within::Union{String, Nothing}=nothing,
+                 subject::Union{String, Nothing}=nothing,
+                 correction::String="gg")
+    if all([(v !== nothing) for v in [dv, within, subject]])
+        # long-to-wide-rm
+    end
+    
+    # todo: drop na
+
+    # todo: Support for two-way factor of shape (2, N)
+
+    S = cov(convert(Matrix, data))
+    n, k = size(data)
+    if k <= 2
+        return 1.
+    end
+
+    # degrees of freedom
+    # one-way design
+    df = k - 1
+    # two-way design (>2, >2)
+
+    if correction == "lb"
+        return 1 / df
+    end
+
+    # Greenhouse-Geisser
+    # Method 1. Sums of squares. (see real-statistics.com)
+    mean_var = mean(diag(S))
+    S_mean = mean(S)
+    ss_mat = sum(S.^2)
+    ss_rows = sum(mean(S, dims=2).^2)
+    num = (k * (mean_var - S_mean)) ^ 2
+    den = (k - 1) * (ss_mat - 2 * k * ss_rows + k^2 * S_mean^2)
+    eps = minimum([num / den, 1])
+
+    # Huynh-Feldt
+    if correction == "hf"
+        num = n * df * eps - 2
+        den = df * (n - 1 - df * eps)
+        eps = minimum([num / den, 1])
+    end
+
+    return eps
 end
