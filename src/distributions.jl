@@ -907,31 +907,35 @@ Subject
 which gives the same epsilon value as the long-format dataframe.
 """
 function epsilon(data::DataFrame;
-                 dv::Union{String, Nothing}=nothing,
-                 within::Union{String, Nothing}=nothing,
-                 subject::Union{String, Nothing}=nothing,
-                 correction::String="gg")
+                 dv::Union{Symbol, String, Nothing}=nothing,
+                 within::Union{Array{String}, Array{Symbol}, String, Nothing}=nothing,
+                 subject::Union{Symbol, String, Nothing}=nothing,
+                 correction::String="gg")::Float64
+    levels = nothing
     if all([(v !== nothing) for v in [dv, within, subject]])
-        # long-to-wide-rm
+        data, levels = _transform_rm(data, dv=dv, within=within, subject=subject)
     end
     
     # todo: drop na
 
-    # todo: Support for two-way factor of shape (2, N)
-
     S = cov(convert(Matrix, data))
     n, k = size(data)
+
+    # Epsilon is always 1 with only two repeated measures.
     if k <= 2
         return 1.
     end
 
     # degrees of freedom
     # one-way design
-    df = k - 1
-    # two-way design (>2, >2)
+
+    df = levels === nothing ? 
+                            k - 1. :
+                            (levels[1] - 1) * (levels[2] - 1)
+
 
     if correction == "lb"
-        return 1 / df
+        return 1. / df
     end
 
     # Greenhouse-Geisser
@@ -942,14 +946,69 @@ function epsilon(data::DataFrame;
     ss_rows = sum(mean(S, dims=2).^2)
     num = (k * (mean_var - S_mean)) ^ 2
     den = (k - 1) * (ss_mat - 2 * k * ss_rows + k^2 * S_mean^2)
-    eps = minimum([num / den, 1])
+    eps = minimum([num / den, 1.])
 
     # Huynh-Feldt
     if correction == "hf"
         num = n * df * eps - 2
         den = df * (n - 1 - df * eps)
-        eps = minimum([num / den, 1])
+        eps = minimum([num / den, 1.])
     end
 
     return eps
+end
+
+
+"""
+Convert long-format dataframe (one and two-way designs).
+This internal function is used in Pingouin.epsilon and Pingouin.sphericity.
+"""
+function _transform_rm(data::DataFrame;
+                          dv::Union{Symbol, String, Nothing}=nothing,
+                          within::Union{Symbol, String, Nothing, Array{String}, Array{Symbol}}=nothing,
+                          subject::Union{Symbol, String, Nothing}=nothing)
+    @assert Symbol(dv) in propertynames(data)
+    @assert Symbol(subject) in propertynames(data)
+    @assert !any(isnan.(data[dv]))
+    if isa(within, Union{String, Symbol})
+        within = [within]
+    end
+    for w in within
+        @assert Symbol(w) in propertynames(data)
+    end
+
+    data = data[[subject, within..., dv]]
+    if length(within) == 1
+        wide_df = unstack(data, subject, within[1], dv)
+        return convert(Matrix{Real}, wide_df[:, Not(subject)])
+    elseif length(within) == 2
+
+        function _factor_levels(data::DataFrame, within::Array)::Array
+            levels = []
+            for factor in within
+                l = length(unique(data[factor]))
+                push!(levels, l)
+            end
+    
+            return levels
+        end
+
+        within_levels = _factor_levels(data, within)
+        within = within[sortperm(within_levels)]
+
+        grp = groupby(data, within[1])
+        mat = nothing
+        for g in grp
+            # todo: add warning for more than two levels
+            g = g[:, Not(within[1])]
+            g = unstack(g, subject, within[2], dv)
+            mat = mat === nothing ?
+                                  convert(Matrix{Real}, g[:, Not(subject)]) :
+                                  convert(Matrix{Real}, g[:, Not(subject)])
+        end
+
+        return mat, within_levels
+    else
+        throw(DomainError(within, "Only one-way and two-way designs are supported."))
+    end
 end
