@@ -499,10 +499,7 @@ Parameters
 ----------
 data : :py:class:`pandas.DataFrame`
     DataFrame containing the repeated measurements.
-    Both wide and long-format dataframe are supported for this function.
-    To test for an interaction term between two repeated measures factors
-    with a wide-format dataframe, ``data`` must have a two-levels
-    :py:class:`pandas.MultiIndex` columns.
+    Only long-format dataframe are supported for this function.
 dv : string
     Name of column containing the dependent variable (only required if
     ``data`` is in long format).
@@ -769,13 +766,9 @@ Parameters
 ----------
 data : `DataFrame`
     DataFrame containing the repeated measurements.
-    Both wide and long-format dataframe are supported for this function.
-    To test for an interaction term between two repeated measures factors
-    with a wide-format dataframe, ``data`` must have a two-levels
-    `MultiIndex` columns.
+    Only long-format dataframe are supported for this function.
 dv : string
-    Name of column containing the dependent variable (only required if
-    ``data`` is in long format).
+    Name of column containing the dependent variable.
 within : string
     Name of column containing the within factor (only required if ``data``
     is in long format).
@@ -788,9 +781,9 @@ subject : string
 correction : string
     Specify the epsilon version:
 
-    * ``'gg'``: Greenhouse-Geisser
-    * ``'hf'``: Huynh-Feldt
-    * ``'lb'``: Lower bound
+    * ``"gg"``: Greenhouse-Geisser
+    * ``"hf"``: Huynh-Feldt
+    * ``"lb"``: Lower bound
 
 Returns
 -------
@@ -842,28 +835,32 @@ Using a wide-format dataframe
 >>> data = DataFrame(A = [2.2, 3.1, 4.3, 4.1, 7.2],
                      B = [1.1, 2.5, 4.1, 5.2, 6.4],
                      C = [8.2, 4.5, 3.4, 6.2, 7.2])
->>> gg = Pingouin.epsilon(data, correction="gg")
+>>> Pingouin.epsilon(data, correction="gg")
 0.5587754577585018
->>> hf = Pingouin.epsilon(data, correction="hf")
+>>> Pingouin.epsilon(data, correction="hf")
 0.6223448311539789
->>> lb = Pingouin.epsilon(data, correction="lb")
+>>> Pingouin.epsilon(data, correction="lb")
 0.5
 
 Now using a long-format dataframe
 
->>> data = pg.read_dataset('rm_anova2')
->>> data.head()
-   Subject Time   Metric  Performance
-0        1  Pre  Product           13
-1        2  Pre  Product           12
-2        3  Pre  Product           17
-3        4  Pre  Product           12
-4        5  Pre  Product           19
+>>> data = Pingouin.read_dataset("rm_anova2")
+>>> head(data)
+6×4 DataFrame
+│ Row │ Subject │ Time   │ Metric  │ Performance │
+│     │ Int64   │ String │ String  │ Int64       │
+├─────┼─────────┼────────┼─────────┼─────────────┤
+│ 1   │ 1       │ Pre    │ Product │ 13          │
+│ 2   │ 2       │ Pre    │ Product │ 12          │
+│ 3   │ 3       │ Pre    │ Product │ 17          │
+│ 4   │ 4       │ Pre    │ Product │ 12          │
+│ 5   │ 5       │ Pre    │ Product │ 19          │
+│ 6   │ 6       │ Pre    │ Product │ 6           │
 
 Let's first calculate the epsilon of the *Time* within-subject factor
 
->>> pg.epsilon(data, dv='Performance', subject='Subject',
-...            within='Time')
+>>> Pingouin.epsilon(data, dv="Performance", subject="Subject",
+...                  within="Time")
 1.0
 
 Since *Time* has only two levels (Pre and Post), the sphericity assumption
@@ -871,9 +868,9 @@ is necessarily met, and therefore the epsilon adjustement factor is 1.
 
 The *Metric* factor, however, has three levels:
 
->>> round(pg.epsilon(data, dv='Performance', subject='Subject',
-...                  within=['Metric']), 3)
-0.969
+>>> Pingouin.epsilon(data, dv=:Performance, subject=:Subject,
+...                  within=[:Metric])
+0.9691029584899762
 
 The epsilon value is very close to 1, meaning that there is no major
 violation of sphericity.
@@ -881,39 +878,22 @@ violation of sphericity.
 Now, let's calculate the epsilon for the interaction between the two
 repeated measures factor:
 
->>> round(pg.epsilon(data, dv='Performance', subject='Subject',
-...                  within=['Time', 'Metric']), 3)
-0.727
-
-Alternatively, we could use a wide-format dataframe with two column
-levels:
-
->>> # Pivot from long-format to wide-format
->>> piv = data.pivot_table(index='Subject', columns=['Time', 'Metric'],
-...                        values='Performance')
->>> piv.head()
-Time      Post                   Pre
-Metric  Action Client Product Action Client Product
-Subject
-1           34     30      18     17     12      13
-2           30     18       6     18     19      12
-3           32     31      21     24     19      17
-4           40     39      18     25     25      12
-5           27     28      18     19     27      19
-
->>> round(pg.epsilon(piv), 3)
-0.727
-
-which gives the same epsilon value as the long-format dataframe.
+>>> Pingouin.epsilon(data, dv=:Performance, subject=:Subject,
+...                  within=[:Time, :Metric])
+0.727166420214127
 """
 function epsilon(data::DataFrame;
                  dv::Union{Symbol, String, Nothing}=nothing,
-                 within::Union{Array{String}, Array{Symbol}, String, Nothing}=nothing,
+                 within::Union{Array{String}, Array{Symbol}, Symbol, String, Nothing}=nothing,
                  subject::Union{Symbol, String, Nothing}=nothing,
                  correction::String="gg")::Float64
     levels = nothing
     if all([(v !== nothing) for v in [dv, within, subject]])
         data, levels = _transform_rm(data, dv=dv, within=within, subject=subject)
+
+        if all(levels .> 2)
+            @warn "Epsilon values might be innaccurate in two-way repeated measures design where each factor has more than 2 levels.\nPlease double-check your results."
+        end
     end
     
     # todo: drop na
@@ -922,13 +902,12 @@ function epsilon(data::DataFrame;
     n, k = size(data)
 
     # Epsilon is always 1 with only two repeated measures.
-    if k <= 2
+    if (k <= 2) && levels === nothing
         return 1.
     end
 
     # degrees of freedom
-    # one-way design
-
+    # one-way and two-way designs
     df = levels === nothing ? 
                             k - 1. :
                             (levels[1] - 1) * (levels[2] - 1)
@@ -978,11 +957,15 @@ function _transform_rm(data::DataFrame;
     end
 
     data = data[[subject, within..., dv]]
+    grp = combine(groupby(data, [subject, within...], skipmissing=true), dv => mean => dv)
     if length(within) == 1
-        wide_df = unstack(data, subject, within[1], dv)
-        return convert(Matrix{Real}, wide_df[:, Not(subject)])
-    elseif length(within) == 2
+        grp = unstack(grp, subject, within..., dv)
+        grp = grp[:, Not(subject)]
 
+        return convert(Matrix{Real}, grp), nothing
+    elseif length(within) == 2
+        # data_wide = unstack(data, within[end], dv)
+        # combine(groupby(data_wide, [subject]), sort(unique(data[within[end]])) .=> diff .=> sort(unique(data[within[end]])))
         function _factor_levels(data::DataFrame, within::Array)::Array
             levels = []
             for factor in within
@@ -995,19 +978,21 @@ function _transform_rm(data::DataFrame;
 
         within_levels = _factor_levels(data, within)
         within = within[sortperm(within_levels)]
+        within_levels = sort(within_levels)
 
-        grp = groupby(data, within[1])
-        mat = nothing
-        for g in grp
-            # todo: add warning for more than two levels
-            g = g[:, Not(within[1])]
-            g = unstack(g, subject, within[2], dv)
-            mat = mat === nothing ?
-                                  convert(Matrix{Real}, g[:, Not(subject)]) :
-                                  convert(Matrix{Real}, g[:, Not(subject)])
+        @assert within_levels[2] >= 2 "Factor must have at least two levels"
+
+        grp = groupby(grp, within[1], skipmissing=true)
+        grp = [g[:, Not(within[1])] for g in grp]
+        grp = unstack.(grp, subject, within[2], dv)
+        grp = [g[:, Not(subject)] for g in grp]
+    
+        mat = grp[1]
+        for i in 2:length(grp)
+            mat .-= grp[i]
         end
 
-        return mat, within_levels
+        return convert(Matrix{Real}, mat), within_levels
     else
         throw(DomainError(within, "Only one-way and two-way designs are supported."))
     end
