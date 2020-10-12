@@ -258,9 +258,9 @@ uuid = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 
 [[StatsBase]]
 deps = ["DataAPI", "DataStructures", "LinearAlgebra", "Missings", "Printf", "Random", "SortingAlgorithms", "SparseArrays", "Statistics"]
-git-tree-sha1 = "d72a47c47c522e283db774fc8c459dd5ed773710"
+git-tree-sha1 = "7bab7d4eb46b225b35179632852b595a3162cb61"
 uuid = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
-version = "0.33.1"
+version = "0.33.2"
 
 [[StatsFuns]]
 deps = ["Rmath", "SpecialFunctions"]
