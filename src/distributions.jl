@@ -497,15 +497,13 @@ end
 
 Parameters
 ----------
-data : :py:class:`pandas.DataFrame`
+data : `DataFrame`
     DataFrame containing the repeated measurements.
     Only long-format dataframe are supported for this function.
 dv : string
-    Name of column containing the dependent variable (only required if
-    ``data`` is in long format).
+    Name of column containing the dependent variable.
 within : string
-    Name of column containing the within factor (only required if ``data``
-    is in long format).
+    Name of column containing the within factor.
     If ``within`` is a list with two strings, this function computes
     the epsilon factor for the interaction between the two within-subject
     factor.
@@ -604,45 +602,52 @@ Examples
 --------
 Mauchly test for sphericity using a wide-format dataframe
 
->>> import pandas as pd
->>> import pingouin as pg
->>> data = pd.DataFrame({'A': [2.2, 3.1, 4.3, 4.1, 7.2],
-...                      'B': [1.1, 2.5, 4.1, 5.2, 6.4],
-...                      'C': [8.2, 4.5, 3.4, 6.2, 7.2]})
->>> spher, W, chisq, dof, pval = pg.sphericity(data)
->>> print(spher, round(W, 3), round(chisq, 3), dof, round(pval, 3))
-True 0.21 4.677 2 0.096
+>>> data = DataFrame(A = [2.2, 3.1, 4.3, 4.1, 7.2],
+                     B = [1.1, 2.5, 4.1, 5.2, 6.4],
+                     C = [8.2, 4.5, 3.4, 6.2, 7.2])
+>>> Pingouin.sphericity(data)
+│ Row │ spher │ W        │ chi2    │ dof     │ pval      │
+│     │ Bool  │ Float64  │ Float64 │ Float64 │ Float64   │
+├─────┼───────┼──────────┼─────────┼─────────┼───────────┤
+│ 1   │ 1     │ 0.210372 │ 4.67663 │ 2.0     │ 0.0964902 │
 
 John, Nagao and Sugiura (JNS) test
 
->>> round(pg.sphericity(data, method='jns')[-1], 3)  # P-value only
-0.046
+>>> Pingouin.sphericity(data, method="jns")[:pval]  # P-value only
+0.045604240307520305
 
 Now using a long-format dataframe
 
->>> data = pg.read_dataset('rm_anova2')
->>> data.head()
-   Subject Time   Metric  Performance
-0        1  Pre  Product           13
-1        2  Pre  Product           12
-2        3  Pre  Product           17
-3        4  Pre  Product           12
-4        5  Pre  Product           19
+>>> data = Pingouin.read_dataset("rm_anova2")
+>>> head(data)
+6x4 DataFrame
+│ Row │ Subject │ Time   │ Metric  │ Performance │
+│     │ Int64   │ String │ String  │ Int64       │
+├─────┼─────────┼────────┼─────────┼─────────────┤
+│ 1   │ 1       │ Pre    │ Product │ 13          │
+│ 2   │ 2       │ Pre    │ Product │ 12          │
+│ 3   │ 3       │ Pre    │ Product │ 17          │
+│ 4   │ 4       │ Pre    │ Product │ 12          │
+│ 5   │ 5       │ Pre    │ Product │ 19          │
+│ 6   │ 6       │ Pre    │ Product │ 6           │
 
 Let's first test sphericity for the *Time* within-subject factor
 
->>> pg.sphericity(data, dv='Performance', subject='Subject',
-...            within='Time')
-(True, nan, nan, 1, 1.0)
+>>> Pingouin.sphericity(data, dv=:Performance, subject=:Subject,
+                        within=:Time)
+│ Row │ spher │ W       │ chi2    │ dof   │ pval    │
+│     │ Bool  │ Float64 │ Float64 │ Int64 │ Float64 │
+├─────┼───────┼─────────┼─────────┼───────┼─────────┤
+│ 1   │ 1     │ NaN     │ NaN     │ 1     │ 1.0     │
 
 Since *Time* has only two levels (Pre and Post), the sphericity assumption
 is necessarily met.
 
 The *Metric* factor, however, has three levels:
 
->>> round(pg.sphericity(data, dv='Performance', subject='Subject',
-...                     within=['Metric'])[-1], 3)
-0.878
+>>> Pingouin.sphericity(data, dv="Performance", subject="Subject",
+                        within=["Metric"])[:pval]
+0.8784417991645139
 
 The p-value value is very large, and the test therefore indicates that
 there is no violation of sphericity.
@@ -652,44 +657,34 @@ repeated measures factor. The current implementation in Pingouin only works
 if at least one of the two within-subject factors has no more than two
 levels.
 
->>> spher, _, chisq, dof, pval = pg.sphericity(data, dv='Performance',
-...                                            subject='Subject',
-...                                            within=['Time', 'Metric'])
->>> print(spher, round(chisq, 3), dof, round(pval, 3))
-True 3.763 2 0.152
+>>> Pingouin.sphericity(data, dv="Performance",
+                        subject="Subject",
+                        within=["Time", "Metric"])
+│ Row │ spher │ W        │ chi2    │ dof     │ pval     │
+│     │ Bool  │ Float64  │ Float64 │ Float64 │ Float64  │
+├─────┼───────┼──────────┼─────────┼─────────┼──────────┤
+│ 1   │ 1     │ 0.624799 │ 3.7626  │ 2.0     │ 0.152392 │
 
 Here again, there is no violation of sphericity acccording to Mauchly's
 test.
-
-Alternatively, we could use a wide-format dataframe with two column
-levels:
-
->>> # Pivot from long-format to wide-format
->>> piv = data.pivot_table(index='Subject', columns=['Time', 'Metric'],
-...                        values='Performance')
->>> piv.head()
-Time      Post                   Pre
-Metric  Action Client Product Action Client Product
-Subject
-1           34     30      18     17     12      13
-2           30     18       6     18     19      12
-3           32     31      21     24     19      17
-4           40     39      18     25     25      12
-5           27     28      18     19     27      19
-
->>> spher, _, chisq, dof, pval = pg.sphericity(piv)
->>> print(spher, round(chisq, 3), dof, round(pval, 3))
-True 3.763 2 0.152
-
-which gives the same output as the long-format dataframe.
 """
 function sphericity(data::DataFrame; dv::Union{Nothing, String, Symbol}=nothing, 
-                          within::Union{Nothing, String, Symbol}=nothing, 
-                          subject::Union{Nothing, String, Symbol}=nothing,
-                          method::String="mauchly",
-                          α=.05)
+                    within::Union{Array{String}, Array{Symbol}, Nothing, String, Symbol}=nothing, 
+                    subject::Union{Nothing, String, Symbol}=nothing,
+                    method::String="mauchly",
+                    α=.05)::DataFrame
+    levels = nothing
     if all([(v !== nothing) for v in [dv, within, subject]])
-        # long-to-wide-rm
+        data, levels = _transform_rm(data, dv=dv, within=within, subject=subject)
+
+        if levels !== nothing
+            if all(levels .> 2)
+                throw(DomainError(levels, "If using two-way repeated measures design, at least one factor must have exactly two levels. More complex designs are not yet supported."))
+            end
+            if levels[1] < 2
+                levels = nothing
+            end
+        end
     end
 
     # todo: dropna
@@ -703,14 +698,14 @@ function sphericity(data::DataFrame; dv::Union{Nothing, String, Symbol}=nothing,
 
     # Sphericity is always met with only two repeated measures.
     if k <= 2
-        return true, NaN, NaN, 1, 1.
+        return DataFrame(spher = true, W = NaN, chi2 = NaN, dof = 1, pval=1.)
     end
 
     # Compute dof of the test
     ddof = (d * (d + 1)) / 2 - 1
-    ddof = ddof == 0 ? 1 : 0
+    ddof = ddof == 0 ? 1 : ddof
 
-    if method.lower() == "mauchly"
+    if method == "mauchly"
         # Method 1. Contrast matrix. Similar to R & Matlab implementation.
         # Only works for one-way design or two-way design with shape (2, N).
         # 1 - Compute the successive difference matrix Z.
@@ -748,12 +743,12 @@ function sphericity(data::DataFrame; dv::Union{Nothing, String, Symbol}=nothing,
         pval = p1 + w2 * (p2 - p1)
     else
         # Method = JNS
-        # eps = epsilon(data, correction='gg')
-        # W = eps * d
-        # chi_sq = 0.5 * n * d**2 * (W - 1 / d)
-        # pval = scipy.stats.chi2.sf(chi_sq, ddof)
+        eps = epsilon(data, correction="gg")
+        W = eps * d
+        chi_sq = 0.5 * n * d^2 * (W - 1 / d)
+        pval = 1 - cdf(Chisq(ddof), chi_sq)
     end
-    spher = pval > α ? true : False
+    spher = pval > α ? true : false
 
     return DataFrame(spher = spher, W = W, chi2 = chi_sq, dof = ddof, pval=pval)
 end
@@ -860,7 +855,7 @@ Now using a long-format dataframe
 Let's first calculate the epsilon of the *Time* within-subject factor
 
 >>> Pingouin.epsilon(data, dv="Performance", subject="Subject",
-...                  within="Time")
+                     within="Time")
 1.0
 
 Since *Time* has only two levels (Pre and Post), the sphericity assumption
@@ -869,7 +864,7 @@ is necessarily met, and therefore the epsilon adjustement factor is 1.
 The *Metric* factor, however, has three levels:
 
 >>> Pingouin.epsilon(data, dv=:Performance, subject=:Subject,
-...                  within=[:Metric])
+                     within=[:Metric])
 0.9691029584899762
 
 The epsilon value is very close to 1, meaning that there is no major
@@ -879,10 +874,10 @@ Now, let's calculate the epsilon for the interaction between the two
 repeated measures factor:
 
 >>> Pingouin.epsilon(data, dv=:Performance, subject=:Subject,
-...                  within=[:Time, :Metric])
+                     within=[:Time, :Metric])
 0.727166420214127
 """
-function epsilon(data::DataFrame;
+function epsilon(data::Union{Array{Real}, DataFrame};
                  dv::Union{Symbol, String, Nothing}=nothing,
                  within::Union{Array{String}, Array{Symbol}, Symbol, String, Nothing}=nothing,
                  subject::Union{Symbol, String, Nothing}=nothing,
