@@ -891,8 +891,13 @@ function epsilon(data::DataFrame;
     if all([(v !== nothing) for v in [dv, within, subject]])
         data, levels = _transform_rm(data, dv=dv, within=within, subject=subject)
 
-        if all(levels .> 2)
-            @warn "Epsilon values might be innaccurate in two-way repeated measures design where each factor has more than 2 levels.\nPlease double-check your results."
+        if levels !== nothing
+            if all(levels .> 2)
+                @warn "Epsilon values might be innaccurate in two-way repeated measures design where each factor has more than 2 levels.\nPlease double-check your results."
+            end
+            if levels[1] < 2
+                levels = nothing
+            end
         end
     end
     
