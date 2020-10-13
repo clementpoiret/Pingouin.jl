@@ -1,6 +1,19 @@
-using DataFrames
 using Distributions
 using Statistics
+
+
+function _check_eftype(eftype::String)::Bool
+    return (eftype in ["none",
+                       "cohen",
+                       "hedges",
+                       "glass",
+                       "r",
+                       "eta-square",
+                       "odds-ratio",
+                       "AUC",
+                       "CLES"])
+end
+
 
 """
 Calculate effect size between two set of observations.
@@ -138,6 +151,10 @@ function compute_effsize(x::Array{<:Number},
                          y::Array{<:Number};
                          paired::Bool=false,
                          eftype::String="cohen")::Float64
+    if !_check_eftype(eftype)
+        throw(DomainError(eftype, "Invalid eftype."))
+    end
+
     if (size(x) != size(y)) && paired
         @warn "x and y have unequal sizes. Switching to paired = false."
         paired = false
@@ -148,35 +165,35 @@ function compute_effsize(x::Array{<:Number},
     nx, ny = length(x), length(y)
 
     if ny == 1
-        # Case 1: One-sample Test
+    # Case 1: One-sample Test
         d = (mean(x) - mean(y)) / std(x)
         return d
     end
 
     if eftype == "glass"
-        # Find group with lowest variance
+    # Find group with lowest variance
         sd_control = minimum([std(x), std(y)])
         d = (mean(x) - mean(y)) / sd_control
         return d
     elseif eftype == "r"
-        # return correlation coefficient (useful for CI bootstrapping)
+    # return correlation coefficient (useful for CI bootstrapping)
         r = cor(x, y)
         return r
     elseif eftype == "cles"
-        # Compute exact CLES (see Pingouin.wilcoxon)
+    # Compute exact CLES (see Pingouin.wilcoxon)
         difference = x .- transpose(y)
         return mean(ifelse.(difference .== 0, 0.5, (difference .> 0) * 1.))
     else
-        # Test equality of variance of data with a stringent threshold
-        # equal_var, p = homoscedasticity(x, y, alpha=.001)
-        # if !equal_var
-        #     print("Unequal variances (p<.001). You should report",
-        #           "Glass delta instead.")
-        # end
+    # Test equality of variance of data with a stringent threshold
+    # equal_var, p = homoscedasticity(x, y, alpha=.001)
+    # if !equal_var
+    #     print("Unequal variances (p<.001). You should report",
+    #           "Glass delta instead.")
+    # end
 
-        # Compute unbiased Cohen's d effect size
+    # Compute unbiased Cohen's d effect size
         if !paired
-            # https://en.wikipedia.org/wiki/Effect_size
+        # https://en.wikipedia.org/wiki/Effect_size
             ddof = nx + ny - 2
             poolsd = sqrt(((nx - 1) * var(x) + (ny - 1) * var(y)) / ddof)
             d = (mean(x) - mean(y)) / poolsd
@@ -294,6 +311,12 @@ function convert_effsize(ef::Float64,
                          output_type::String;
                          nx::Union{Int64,Nothing}=nothing,
                          ny::Union{Int64,Nothing}=nothing)::Float64
+    for eftype in [input_type, output_type]
+        if !_check_eftype(eftype)
+            throw(DomainError(eftype, "Invalid eftype."))
+        end
+    end
+
     if !(input_type in ["r", "cohen"])
         throw(DomainError(input_type, "Input type must be 'r' or 'cohen'"))
     end
@@ -302,10 +325,10 @@ function convert_effsize(ef::Float64,
         return ef
     end
 
-    # Convert r to Cohen d (Rosenthal 1994)
+# Convert r to Cohen d (Rosenthal 1994)
     d = input_type == "r" ? (2 * ef) / sqrt(1 - ef^2) : ef
 
-    # Then convert to the desired output type
+# Then convert to the desired output type
     if output_type == "cohen"
         return d
     elseif output_type == "hedges"
@@ -319,7 +342,7 @@ function convert_effsize(ef::Float64,
         @warn "Returning original effect size instead of Glass because variance is not known."
         return ef
     elseif output_type == "r"
-        # McGrath and Meyer 2006
+    # McGrath and Meyer 2006
         if all([v !== nothing for v in [nx, ny]])
             a = ((nx + ny)^2 - 2 * (nx + ny)) / (nx * ny)
         else
@@ -327,12 +350,81 @@ function convert_effsize(ef::Float64,
         end
         return d / sqrt(d^2 + a)
     elseif output_type == "eta-square"
-        # Cohen 1988
+    # Cohen 1988
         return (d / 2)^2 / (1 + (d / 2)^2)
     elseif output_type == "odds-ratio"
-        # Borenstein et al. 2009
+    # Borenstein et al. 2009
         return exp(d * pi / sqrt(3))
     else # "auc"
         cdf(Normal(), (d / sqrt(2)))
     end
+end
+
+
+"""
+Compute effect size from a T-value.
+
+Parameters
+----------
+tval : float
+    T-value
+nx, ny : int, optional
+    Group sample sizes.
+N : int, optional
+    Total sample size (will not be used if nx and ny are specified)
+eftype : string, optional
+    desired output effect size
+
+Returns
+-------
+ef : float
+    Effect size
+
+See Also
+--------
+compute_effsize : Calculate effect size between two set of observations.
+convert_effsize : Conversion between effect sizes.
+
+Notes
+-----
+If both nx and ny are specified, the formula to convert from *t* to *d* is:
+
+.. math:: d = t * \\sqrt{\\frac{1}{n_x} + \\frac{1}{n_y}}
+
+If only N (total sample size) is specified, the formula is:
+
+.. math:: d = \\frac{2t}{\\sqrt{N}}
+
+Examples
+--------
+1. Compute effect size from a T-value when both sample sizes are known.
+
+>>> tval, nx, ny = 2.90, 35, 25
+>>> d = Pingouin.compute_effsize_from_t(tval, nx=nx, ny=ny, eftype="cohen")
+0.7593982580212534
+
+2. Compute effect size when only total sample size is known (nx+ny)
+
+>>> tval, N = 2.90, 60
+>>> d = Pingouin.compute_effsize_from_t(tval, N=N, eftype="cohen")
+0.7487767802667672
+"""
+function compute_effsize_from_t(tval::Float64;
+                                nx::Union{Int64,Nothing}=nothing,
+                                ny::Union{Int64,Nothing}=nothing,
+                                N::Union{Int64,Nothing}=nothing,
+                                eftype::String="cohen")::Float64
+    if !_check_eftype(eftype)
+        throw(DomainError(eftype, "Invalid eftype."))
+    end
+
+    if (nx !== nothing) && (ny !== nothing)
+        d = tval * sqrt(1 / nx + 1 / ny)
+    elseif N !== nothing
+        d = 2 * tval / sqrt(N)
+    else
+        throw(DomainError(eftype, "You must specify either nx and ny, or just N"))
+    end
+
+    return convert_effsize(d, "cohen", eftype, nx=nx, ny=ny)
 end
