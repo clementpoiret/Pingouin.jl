@@ -55,7 +55,7 @@ Standardize a lognormal-distributed vector:
   0.9770515331740336
  -0.3611136007126501
 """
-function gzscore(x::Array)::Array
+function gzscore(x::Array{<:Number})::Array{<:Number}
     # Geometric mean
     geo_mean = geomean(x)
     # Geometric standard deviation
@@ -97,7 +97,9 @@ Examples
 >>> Pingouin.anderson(x, dist=Normal(1,5))
 (false, 0.04755873570126501)
 """
-function anderson(x::Array; dist::Union{String, Distribution}=Normal(), α::Float64=0.05)
+function anderson(x::Array{<:Number};
+                  dist::Union{String, Distribution}=Normal(),
+                  α::Float64=0.05)::Tuple{Bool, Float64}
     # todo: implement support for multiple samples
     if isa(dist, String)
         if dist == "norm"
@@ -235,7 +237,11 @@ Univariate normality test.
     │ 2   │ Post   │ 1.30965   │ 0.0951576 │ 1      │
 
 """
-function normality(data; dv=nothing, group=nothing, method::String="shapiro", α::Float64=0.05)
+function normality(data;
+                   dv::Union{Symbol, String, Nothing}=nothing,
+                   group::Union{Symbol, String, Nothing}=nothing,
+                   method::String="shapiro",
+                   α::Float64=0.05)::DataFrame
     func = eval(Meta.parse(method))
     if isa(data, Array{})
         return func(data, α)
@@ -278,7 +284,7 @@ end
 """
 Compute the Shapiro-Wilk statistic to test the null hypothesis that a real-valued vector `y` is normally distributed.
 """
-function shapiro(x::Array{}, α::Float64=0.05)::DataFrame
+function shapiro(x::Array{<:Number}, α::Float64=0.05)::DataFrame
     x = x[@. !isnan.(x)]
     
     n = length(x)
@@ -303,7 +309,7 @@ end
 """
 Compute the Jarque-Bera statistic to test the null hypothesis that a real-valued vector `y` is normally distributed.
 """
-function jarque_bera(x::Array{}, α::Float64=0.05)::DataFrame
+function jarque_bera(x::Array{<:Number}, α::Float64=0.05)::DataFrame
     test = JarqueBeraTest(x)
 
     JB = test.JB
@@ -432,8 +438,8 @@ Test equality of variance.
     │ 1   │ 3.1922  │ 0.0792169 │ 1         │
 """
 function homoscedasticity(data;
-                          dv::Union{String, Nothing}=nothing,
-                          group::Union{String, Nothing}=nothing,
+                          dv::Union{Symbol, String, Nothing}=nothing,
+                          group::Union{Symbol, String, Nothing}=nothing,
                           method::String="levene",
                           α::Float64=0.05)
     @assert method in ["levene", "bartlett"]
@@ -668,7 +674,8 @@ levels.
 Here again, there is no violation of sphericity acccording to Mauchly's
 test.
 """
-function sphericity(data::DataFrame; dv::Union{Nothing, String, Symbol}=nothing, 
+function sphericity(data::DataFrame;
+                    dv::Union{Nothing, String, Symbol}=nothing, 
                     within::Union{Array{String}, Array{Symbol}, Nothing, String, Symbol}=nothing, 
                     subject::Union{Nothing, String, Symbol}=nothing,
                     method::String="mauchly",
@@ -877,7 +884,7 @@ repeated measures factor:
                      within=[:Time, :Metric])
 0.727166420214127
 """
-function epsilon(data::Union{Array{Real}, DataFrame};
+function epsilon(data::Union{Array{<:Number}, DataFrame};
                  dv::Union{Symbol, String, Nothing}=nothing,
                  within::Union{Array{String}, Array{Symbol}, Symbol, String, Nothing}=nothing,
                  subject::Union{Symbol, String, Nothing}=nothing,
@@ -943,9 +950,9 @@ Convert long-format dataframe (one and two-way designs).
 This internal function is used in Pingouin.epsilon and Pingouin.sphericity.
 """
 function _transform_rm(data::DataFrame;
-                          dv::Union{Symbol, String, Nothing}=nothing,
-                          within::Union{Symbol, String, Nothing, Array{String}, Array{Symbol}}=nothing,
-                          subject::Union{Symbol, String, Nothing}=nothing)
+                       dv::Union{Symbol, String, Nothing}=nothing,
+                       within::Union{Symbol, String, Nothing, Array{String}, Array{Symbol}}=nothing,
+                       subject::Union{Symbol, String, Nothing}=nothing)::Tuple{Matrix, Array{Int64}}
     @assert Symbol(dv) in propertynames(data)
     @assert Symbol(subject) in propertynames(data)
     @assert !any(isnan.(data[dv]))

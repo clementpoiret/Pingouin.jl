@@ -1,7 +1,7 @@
 using Distributions
 using Statistics
 
-function levene(samples; center::String="median", α::Float64=0.05) 
+function levene(samples; center::String="median", α::Float64=0.05)::Tuple{Bool,Float64,Float64}
     k = length(samples)
     if k < 2
         throw(DomainError(samples, "Must enter at least two input sample arrays."))
@@ -60,7 +60,7 @@ function levene(samples; center::String="median", α::Float64=0.05)
     return H, W, P
 end
 
-function bartlett(samples; α::Float64=0.05)  
+function bartlett(samples; α::Float64=0.05)::Tuple{Bool,Float64,Float64}
     k = length(samples)
     if k < 2
         throw(DomainError(samples, "Must enter at least two input sample arrays."))

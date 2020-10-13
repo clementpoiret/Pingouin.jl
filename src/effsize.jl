@@ -10,8 +10,8 @@ function _check_eftype(eftype::String)::Bool
                        "r",
                        "eta-square",
                        "odds-ratio",
-                       "AUC",
-                       "CLES"])
+                       "auc",
+                       "cles"])
 end
 
 
@@ -38,8 +38,8 @@ eftype : string
     * ``'r'``: correlation coefficient
     * ``'eta-square'``: Eta-square
     * ``'odds-ratio'``: Odds ratio
-    * ``'AUC'``: Area Under the Curve
-    * ``'CLES'``: Common Language Effect Size
+    * ``'auc'``: Area Under the Curve
+    * ``'cles'``: Common Language Effect Size
 
 Returns
 -------
