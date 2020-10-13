@@ -2,7 +2,8 @@ module Pingouin
 
 export normality
 
-include("distributions.jl")
 include("datasets.jl")
+include("distributions.jl")
+include("effsize.jl")
 
 end # module
