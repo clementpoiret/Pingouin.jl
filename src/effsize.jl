@@ -1,5 +1,7 @@
 using Distributions
+using Random
 using Statistics
+using StatsBase
 
 
 function _check_eftype(eftype::String)::Bool
@@ -580,4 +582,226 @@ function compute_esci(;stat::Union{Float64, Nothing}=nothing,
     end
 
     return round.(ci, digits=decimals)
+end
+
+"""
+Bootstrapped confidence intervals of univariate and bivariate functions.
+
+Parameters
+----------
+x : 1D-array
+    First sample. Required for both bivariate and univariate functions.
+y : 1D-array, nothing
+    Second sample. Required only for bivariate functions.
+func : str or custom function
+    Function to compute the bootstrapped statistic.
+    Accepted string values are:
+
+    * ``'pearson'``: Pearson correlation (bivariate, requires x and y)
+    * ``'spearman'``: Spearman correlation (bivariate)
+    * ``'cohen'``: Cohen d effect size (bivariate)
+    * ``'hedges'``: Hedges g effect size (bivariate)
+    * ``'mean'``: Mean (univariate, requires only x)
+    * ``'std'``: Standard deviation (univariate)
+    * ``'var'``: Variance (univariate)
+method : str
+    Method to compute the confidence intervals:
+
+    * ``'norm'``: Normal approximation with bootstrapped bias and
+        standard error
+    * ``'per'``: Basic percentile method
+    * ``'cper'``: Bias corrected percentile method (default)
+paired : boolean
+    Indicates whether x and y are paired or not. Only useful when computing
+    bivariate Cohen d or Hedges g bootstrapped confidence intervals.
+confidence : float
+    Confidence level (0.95 = 95%)
+n_boot : int
+    Number of bootstrap iterations. The higher, the better, the slower.
+decimals : int
+    Number of rounded decimals.
+seed : int or None
+    Random seed for generating bootstrap samples.
+return_dist : boolean
+    If True, return the confidence intervals and the bootstrapped
+    distribution  (e.g. for plotting purposes).
+
+Returns
+-------
+ci : array
+    Desired converted effect size
+
+Notes
+-----
+Results have been tested against the
+`bootci <https://www.mathworks.com/help/stats/bootci.html>`_
+Matlab function.
+
+References
+----------
+* DiCiccio, T. J., & Efron, B. (1996). Bootstrap confidence intervals.
+    Statistical science, 189-212.
+
+* Davison, A. C., & Hinkley, D. V. (1997). Bootstrap methods and their
+    application (Vol. 1). Cambridge university press.
+
+Examples
+--------
+1. Bootstrapped 95% confidence interval of a Pearson correlation
+
+>>> x = [3, 4, 6, 7, 5, 6, 7, 3, 5, 4, 2]
+>>> y = [4, 6, 6, 7, 6, 5, 5, 2, 3, 4, 1]
+>>> stat = cor(x, y)
+0.7468280049029223
+>>> ci = Pingouin.compute_bootci(x=x, y=y, func="pearson", seed=42)
+2-element Array{Float64,1}:
+ 0.22
+ 0.93
+
+2. Bootstrapped 95% confidence interval of a Cohen d
+
+>>> stat = Pingouin.compute_effsize(x, y, eftype="cohen")
+0.1537753990658328
+>>> ci = Pingouin.compute_bootci(x, y=y, func="cohen", seed=42, decimals=3)
+2-element Array{Float64,1}:
+ -0.329
+  0.589
+
+3. Bootstrapped confidence interval of a standard deviation (univariate)
+
+>>> stat = std(x)
+1.6787441193290351
+>>> ci = Pingouin.compute_bootci(x, func="std", seed=123)
+2-element Array{Float64,1}:
+ 1.25
+ 2.2
+
+4. Bootstrapped confidence interval using a custom univariate function
+
+>>> skewness(x), Pingouin.compute_bootci(x, func=skewness, n_boot=10000, seed=123)
+(-0.08244607271328411, [-1.01, 0.77])
+
+5. Bootstrapped confidence interval using a custom bivariate function
+
+>>> stat = sum(exp.(x) ./ exp.(y))
+26.80405184881793
+>>> ci = Pingouin.compute_bootci(x, y=y, func=f(x, y) = sum(exp.(x) ./ exp.(y)), n_boot=10000, seed=123)
+>>> print(stat, ci)
+2-element Array{Float64,1}:
+ 12.76
+ 45.52
+
+6. Get the bootstrapped distribution around a Pearson correlation
+
+>>> ci, bstat = Pingouin.compute_bootci(x, y=y, return_dist=true)
+([0.27, 0.92], [0.6661370089058535, ...])
+"""
+function compute_bootci(x::Array{<:Number};
+                        y::Union{Array{<:Number},Nothing}=nothing,
+                        func::Union{Function, String}="pearson",
+                        method::String="cper",
+                        paired::Bool=false,
+                        confidence::Float64=.95,
+                        n_boot::Int64=2000,
+                        decimals::Int64=2,
+                        seed::Union{Int64, Nothing}=nothing,
+                        return_dist::Bool=false)::Union{Array{<:Number},Tuple{Array{<:Number},Array{<:Number}}}
+    n = length(x)
+    @assert n > 1
+
+    if y !== nothing
+        ny = length(y)
+        @assert ny > 1
+        n = minimum([n, ny])
+    end
+
+    @assert 0 < confidence 1
+    @assert method in ["norm", "normal", "percentile", "per", "cpercentile", "cper"]
+
+    function _get_func(func::String)::Function
+        if func == "pearson"
+            return cor
+        elseif func == "spearman"
+            return corspearman
+        elseif func in ["cohen", "hedges"]
+            return f(x, y) = compute_effsize(x, y, paired=paired, eftype=func)
+        elseif func == "mean"
+            return mean
+        elseif func == "std"
+            return std
+        elseif func == "var"
+            return var
+        else
+            throw(DomainError(func, "Function string is not recognized."))
+        end
+    end
+
+    if isa(func, String)
+        func = _get_func(func)
+    end
+
+    # Bootstrap
+    if seed !== nothing
+        Random.seed!(seed)
+    end
+    bootsam = sample(1:n, (n, n_boot); replace=true, ordered=false)
+    bootstat = Array{Float64,1}(undef, n_boot)
+
+    if y !== nothing
+        reference = func(x, y)
+        for i in 1:n_boot
+            # Note that here we use a bootstrapping procedure with replacement
+            # of all the pairs (Xi, Yi). This is NOT suited for
+            # hypothesis testing such as p-value estimation). Instead, for the
+            # latter, one must only shuffle the Y values while keeping the X
+            # values constant, i.e.:
+            # >>> bootsam = rng.random_sample((n_boot, n)).argsort(axis=1)
+            # >>> for i in range(n_boot):
+            # >>>   bootstat[i] = func(x, y[bootsam[i, :]])
+            bootstat[i] = func(x[bootsam[:, i]], y[bootsam[:, i]])
+        end
+    else
+        reference = func(x)
+        for i in 1:n_boot
+            bootstat[i] = func(x[bootsam[:, i]])
+        end
+    end
+
+    # Confidence Intervals
+    α = 1 - confidence
+    dist_sorted = sort(bootstat)
+
+    if method in ["norm", "normal"]
+        # Normal approximation
+        za = quantile(Normal(), α/2)
+        se = std(bootstat)
+
+        bias = mean(bootstat .- reference)
+        ll = reference - bias + se * za
+        ul = reference - bias - se * za
+        ci = [ll, ul]
+    elseif method in ["percentile", "per"]
+        # Uncorrected percentile
+        pct_ll = trunc(Int, n_boot * (α/2))
+        pct_ul = trunc(Int, n_boot * (1 - α/2))
+        ci = [dist_sorted[pct_ll], dist_sorted[pct_ul]]
+    else
+        # Corrected percentile bootstrap
+        # Compute bias-correction constant z0
+
+        z_0 = quantile(Normal(), mean(bootstat .< reference) + mean(bootstat .== reference) / 2)
+        z_α = quantile(Normal(), α/2)
+        pct_ul = 100 * cdf(Normal(), 2 * z_0 - z_α)
+        pct_ll = 100 * cdf(Normal(), 2 * z_0 + z_α)
+        ll = percentile(bootstat, pct_ll)
+        ul = percentile(bootstat, pct_ul)
+        ci = [ll, ul]
+    end
+
+    ci = round.(ci, digits=decimals)
+    if return_dist
+        return ci, bootstat
+    else
+        return ci
+    end
 end
