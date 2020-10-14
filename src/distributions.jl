@@ -744,8 +744,8 @@ function sphericity(data::DataFrame;
         f = 1 - (2 * d^2 + d + 2) / (6 * d * (n - 1))
         w2 = ((d + 2) * (d - 1) * (d - 2) * (2 * d^3 + 6 * d^2 + 3 * k + 2) / (288 * ((n - 1) * d * f)^2))
         chi_sq = -(n - 1) * f * logW
-        p1 = 1 - cdf(Chisq(ddof), chi_sq)
-        p2 = 1 - cdf(Chisq(ddof + 4), chi_sq)
+        p1 = ccdf(Chisq(ddof), chi_sq)
+        p2 = ccdf(Chisq(ddof + 4), chi_sq)
 
         pval = p1 + w2 * (p2 - p1)
     else
@@ -753,7 +753,7 @@ function sphericity(data::DataFrame;
         eps = epsilon(data, correction="gg")
         W = eps * d
         chi_sq = 0.5 * n * d^2 * (W - 1 / d)
-        pval = 1 - cdf(Chisq(ddof), chi_sq)
+        pval = ccdf(Chisq(ddof), chi_sq)
     end
     spher = pval > α ? true : false
 

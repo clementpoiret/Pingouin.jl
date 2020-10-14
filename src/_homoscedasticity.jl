@@ -52,7 +52,7 @@ function levene(samples; center::String="median", α::Float64=0.05)::Tuple{Bool,
 
     W = numer / denom
     d = FDist(k - 1, Ntot - k)
-    P = 1 - cdf(d, W)
+    P = ccdf(d, W)
 
     # Test the null hypothesis
     H = (α >= P)
@@ -85,7 +85,7 @@ function bartlett(samples; α::Float64=0.05)::Tuple{Bool,Float64,Float64}
 
     T = numer / denom
     d = Chisq(k - 1)
-    P = 1 - cdf(d, T)
+    P = ccdf(d, T)
     H = (α >= P)
 
     return H, T, P

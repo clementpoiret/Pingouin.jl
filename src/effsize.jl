@@ -428,3 +428,156 @@ function compute_effsize_from_t(tval::Float64;
 
     return convert_effsize(d, "cohen", eftype, nx=nx, ny=ny)
 end
+
+
+"""
+Parametric confidence intervals around a Cohen d or a
+correlation coefficient.
+
+Parameters
+----------
+stat : float
+    Original effect size. Must be either a correlation coefficient or a
+    Cohen-type effect size (Cohen d or Hedges g).
+nx, ny : int
+    Length of vector x and y.
+paired : bool
+    Indicates if the effect size was estimated from a paired sample.
+    This is only relevant for cohen or hedges effect size.
+eftype : string
+    Effect size type. Must be ``'r'`` (correlation) or ``'cohen'``
+    (Cohen d or Hedges g).
+confidence : float
+    Confidence level (0.95 = 95%)
+decimals : int
+    Number of rounded decimals.
+
+Returns
+-------
+ci : array
+    Desired converted effect size
+
+Notes
+-----
+To compute the parametric confidence interval around a
+**Pearson r correlation** coefficient, one must first apply a
+Fisher's r-to-z transformation:
+
+.. math:: z = 0.5 \\cdot \\ln \\frac{1 + r}{1 - r} = \\text{arctanh}(r)
+
+and compute the standard deviation:
+
+.. math:: \\sigma = \\frac{1}{\\sqrt{n - 3}}
+
+where :math:`n` is the sample size.
+
+The lower and upper confidence intervals - *in z-space* - are then
+given by:
+
+.. math:: \\text{ci}_z = z \\pm \\text{crit} \\cdot \\sigma
+
+where :math:`\\text{crit}` is the critical value of the normal distribution
+corresponding to the desired confidence level (e.g. 1.96 in case of a 95%
+confidence interval).
+
+These confidence intervals can then be easily converted back to *r-space*:
+
+.. math::
+
+    \\text{ci}_r = \\frac{\\exp(2 \\cdot \\text{ci}_z) - 1}
+    {\\exp(2 \\cdot \\text{ci}_z) + 1} = \\text{tanh}(\\text{ci}_z)
+
+A formula for calculating the confidence interval for a
+**Cohen d effect size** is given by Hedges and Olkin (1985, p86).
+If the effect size estimate from the sample is :math:`d`, then it follows a
+T distribution with standard deviation:
+
+.. math::
+
+    \\sigma = \\sqrt{\\frac{n_x + n_y}{n_x \\cdot n_y} +
+    \\frac{d^2}{2 (n_x + n_y)}}
+
+where :math:`n_x` and :math:`n_y` are the sample sizes of the two groups.
+
+In one-sample test or paired test, this becomes:
+
+.. math::
+
+    \\sigma = \\sqrt{\\frac{1}{n_x} + \\frac{d^2}{2 n_x}}
+
+The lower and upper confidence intervals are then given by:
+
+.. math:: \\text{ci}_d = d \\pm \\text{crit} \\cdot \\sigma
+
+where :math:`\\text{crit}` is the critical value of the T distribution
+corresponding to the desired confidence level.
+
+References
+----------
+* https://en.wikipedia.org/wiki/Fisher_transformation
+
+* Hedges, L., and Ingram Olkin. "Statistical models for meta-analysis."
+    (1985).
+
+* http://www.leeds.ac.uk/educol/documents/00002182.htm
+
+* https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5133225/
+
+Examples
+--------
+1. Confidence interval of a Pearson correlation coefficient
+
+>>> x = [3, 4, 6, 7, 5, 6, 7, 3, 5, 4, 2]
+>>> y = [4, 6, 6, 7, 6, 5, 5, 2, 3, 4, 1]
+>>> nx, ny = length(x), length(y)
+>>> stat = Pingouin.compute_effsize(x, y, eftype="r")
+0.7468280049029223
+>>> ci = Pingouin.compute_esci(stat=stat, nx=nx, ny=ny, eftype="r")
+2-element Array{Float64,1}:
+ 0.27
+ 0.93
+
+2. Confidence interval of a Cohen d
+
+>>> stat = Pingouin.compute_effsize(x, y, eftype="cohen")
+0.1537753990658328
+>>> ci = Pingouin.compute_esci(stat=stat, nx=nx, ny=ny, eftype="cohen", decimals=3)
+2-element Array{Float64,1}:
+ -0.737
+  1.045
+"""
+function compute_esci(;stat::Union{Float64, Nothing}=nothing,
+                      nx::Union{Int64, Nothing}=nothing,
+                      ny::Union{Int64, Nothing}=nothing,
+                      paired::Bool=false,
+                      eftype::String="cohen",
+                      confidence::Float64=.95,
+                      decimals::Int64=2)::Array{Float64}
+    @assert eftype in ["r", "pearson", "spearman", "cohen", "d", "g", "hedges"]
+    @assert (stat !== nothing) && (nx !== nothing)
+    @assert 0 < confidence < 1
+
+    if eftype in ["r", "pearson", "spearman"]
+        z = atanh(stat)
+        se = 1 / sqrt(nx - 3)
+        crit = abs(quantile(Normal(), (1 - confidence) / 2))
+        ci_z = [z - crit * se, z + crit * se]
+        ci = tanh.(ci_z)
+    else
+        # Cohen d. Results are different than JASP which uses a non-central T
+        # distribution. See github.com/jasp-stats/jasp-issues/issues/525
+        if (ny == 1) || paired
+            se = sqrt(1 / nx + stat^2 / (2 * nx))
+            ddof = nx - 1
+        else
+            # Independent two-samples: give same results as R:
+            # >>> cohen.d(..., paired = FALSE, noncentral=FALSE)
+            se = sqrt(((nx + ny) / (nx * ny)) + (stat^2) / (2 * (nx + ny)))
+            ddof = nx + ny - 2
+        end
+        crit = abs(quantile(TDist(ddof), (1 - confidence) / 2))
+        ci = [stat - crit * se, stat + crit * se]
+    end
+
+    return round.(ci, digits=decimals)
+end
