@@ -89,7 +89,7 @@ Examples
 
 >>> x = [2.3, 5.1, 4.3, 2.6, 7.8, 9.2, 1.4]
 >>> Pingouin.anderson(x, dist="norm")
-(false, 55.34147178627504)
+(false, 8.571428568870942e-5)
 
 2. Test that an array comes from a custom distribution
 
@@ -204,7 +204,7 @@ Univariate normality test.
     --------
     1. Shapiro-Wilk test on a 1D array
     >>> dataset = Pingouin.read_dataset("anova")
-    >>> Pingouin.normality(dataset["Pain Threshold"])
+    >>> Pingouin.normality(dataset["Pain threshold"])
     1×3 DataFrame
     │ Row │ W         │ pval     │ normal │
     │     │ Float64   │ Float64  │ Bool   │
@@ -985,7 +985,7 @@ function _transform_rm(data::DataFrame;
 
         within_levels = _factor_levels(data, within)
         within = within[sortperm(within_levels)]
-        within_levels = sort(within_levels)
+        sort!(within_levels)
 
         @assert within_levels[2] >= 2 "Factor must have at least two levels"
 

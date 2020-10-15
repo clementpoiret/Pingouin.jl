@@ -24,7 +24,7 @@ function shapiro_wilk(x::Array{<:Number}, α::Float64=0.05)::Tuple{Bool,Float64,
 
     @assert 0.0 < α < 1.0
 
-    x = sort(x)
+    sort!(x)
     n = length(x)
     mi = [quantile.(Normal(), (((i) - (3.0 / 8.0)) / (n + .25))) for i in 1:n]
     miSq = sum(mi.^2)

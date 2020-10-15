@@ -584,6 +584,7 @@ function compute_esci(;stat::Union{Float64, Nothing}=nothing,
     return round.(ci, digits=decimals)
 end
 
+
 """
 Bootstrapped confidence intervals of univariate and bivariate functions.
 

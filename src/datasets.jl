@@ -39,7 +39,7 @@ function read_dataset(dname::String)::DataFrame
     path = joinpath(dirname(@__FILE__), "..", "datasets", "datasets.csv")
     dts = DataFrame(CSV.File(path))
     
-    @assert dname in dts[:dataset]
+    @assert dname in dts[!, :dataset]
 
     path = joinpath(dirname(@__FILE__), "..", "datasets", "$dname.csv")
     return DataFrame(CSV.File(path))

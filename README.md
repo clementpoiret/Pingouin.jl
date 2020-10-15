@@ -22,8 +22,8 @@ Pingouin is designed for users who want simple yet exhaustive stats functions:
 ## Current progress
 
 - [x] Distribution,
-- [ ] **Effect sizes [WIP]**,
-- [ ] Non-parametric,
+- [x] Effect sizes,
+- [ ] **Non-parametric [WIP]**,
 - [ ] ANOVA and T-test,
 - [ ] Correlation and regression,
 - [ ] Multiple comparisons and post-hoc tests,
