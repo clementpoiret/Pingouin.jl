@@ -1,4 +1,5 @@
 using SciPy
+# todo: replace SciPy by native julia functions
 using SpecialFunctions
 using HypergeometricFunctions
 
@@ -52,8 +53,8 @@ tails ("failures"). The Bayes Factor can be easily computed using Pingouin:
 > bf = Pingouin.bayesfactor_binom(115, 200, 0.5)
 > # Note that Pingouin returns the BF-alt by default.
 > # BF-null is simply 1 / BF-alt
-> print("BF-null: %.3f, BF-alt: %.3f" % (1 / bf, bf))
-BF-null: 1.197, BF-alt: 0.835
+> print("BF-null: ", 1 / bf, "; BF-alt: ", bf)
+BF-null: 1.197134330237549; BF-alt: 0.8353281455069195
 
 Since the Bayes Factor of the null hypothesis ("the coin is fair") is
 higher than the Bayes Factor of the alternative hypothesis
@@ -77,11 +78,10 @@ would yield significant results at the 5% significance level, the Bayes
 factor does not find any evidence that the coin is unfair.
 Last example using a different base probability of successes
 
-> bf = Pingouin.bayesian.bayesfactor_binom(k=100, n=1000, p=0.1)
+> bf = Pingouin.bayesfactor_binom(100, 1000, 0.1)
 > print("Bayes Factor: ", round.(bf, digits=3))
 Bayes Factor: 0.024
 """
-
 function bayesfactor_binom(k::Int64,
                            n::Int64,
                            p::Float64=.5)::Float64
@@ -138,7 +138,7 @@ bayesfactor_binom : Bayes Factor of a binomial test
 Notes
 -----
 To compute the Bayes Factor directly from the raw data, use the
-:py:func:`pingouin.corr` function.
+`pingouin.corr` function.
 The two-sided **Wetzels Bayes Factor** (also called *JZS Bayes Factor*)
 is calculated using the equation 13 and associated R code of [1]_:
 .. math::
@@ -182,25 +182,34 @@ Bayes Factor: 10.634
 
 Compare to Wetzels method:
 
-> bf = Pingouin.bayesfactor_pearson(r, n, "two-sided", "wetzels", 1.)
+> bf = Pingouin.bayesfactor_pearson(r, n,
+                                    tail="two-sided",
+                                    method="wetzels",
+                                    kappa=1.)
 > print("Bayes Factor: ", round.(bf, digits=3))
 Bayes Factor: 8.221
 
 One-sided test
 
-> bf10pos = Pingouin.bayesfactor_pearson(r, n, "greater", "ly", 1.0)
-> bf10neg = Pingouin.bayesfactor_pearson(r, n, "less", "ly", 1.0)
+> bf10pos = Pingouin.bayesfactor_pearson(r, n, 
+                                         tail="one-sided",
+                                         method="ly",
+                                         kappa=1.0)
+> bf10neg = Pingouin.bayesfactor_pearson(r, n,
+                                         tail="less",
+                                         method="ly",
+                                         kappa=1.0)
 > print("BF-pos: ", round.(bf10pos, digits=3)," BF-neg: ", round.(bf10neg, digits=3))
 BF-pos: 21.185, BF-neg: 0.082
 
 We can also only pass ``tail='one-sided'`` and Pingouin will automatically
 infer the directionality of the test based on the ``r`` value.
 
-> print("BF: ", round.(bayesfactor_pearson(r, n, tail='one-sided'), digits=3))
+> print("BF: ", round.(bayesfactor_pearson(r, n, tail="one-sided"), digits=3))
 BF: 21.185
 """
 function bayesfactor_pearson(r::Float64,
-                             n::Int64,
+                             n::Int64;
                              tail::String="two-sided",
                              method::String="ly",
                              kappa::Float64=1.)::Float64
@@ -225,7 +234,7 @@ function bayesfactor_pearson(r::Float64,
         function f(g, r, n)
             return exp(((n - 2) / 2) * log(1 + g) + (-(n - 1) / 2)
                        * log(1 + (1 - r^2) * g) + (-3 / 2)
-                       * log(g) + - n / (2 * g))
+        * log(g) + - n / (2 * g))
         end
 
         integr = SciPy.integrate.quad(f, 0, Inf, args=(r, n))[1]
@@ -243,18 +252,15 @@ function bayesfactor_pearson(r::Float64,
         if lowercase(tail) != "two-sided"
             # Directional test.
             # We need mpmath for the generalized hypergeometric function
-            hyper_term = float(_₃F₂(1, n / 2, n / 2, 3 / 2,
-                                      (2 + k * (n + 1)) / (2 * k),
-                                      r^2))
+            hyper_term = float(_₃F₂(1, n / 2, n / 2, 3 / 2, (2 + k * (n + 1)) / (2 * k), r^2))
             log_term = 2 * (loggamma(n / 2) - loggamma((n - 1) / 2)) - lbeta
-            C = 2^((3 * k - 2) / k) * k * r / (2 + (n - 1) * k) * \
-                exp(log_term) * hyper_term
+            C = 2^((3 * k - 2) / k) * k * r / (2 + (n - 1) * k) * exp(log_term) * hyper_term
 
             bf10neg = bf10 - C
             bf10pos = 2 * bf10 - bf10neg
             if lowercase(tail) in ["one-sided"]
                 # Automatically find the directionality of the test based on r
-                if r>= 0
+                if r >= 0
                     bf10 = bf10pos
                 else
                     bf10 = bf10neg
@@ -343,34 +349,33 @@ Examples
 --------
 1. Bayes Factor of an independent two-sample T-test
 
-> from Pingouin
-> bf = Pingouin.bayesian.bayesfactor_ttest(3.5, 20, 20)
+> bf = Pingouin.bayesfactor_ttest(3.5, 20, 20)
 > print("Bayes Factor: ", round.(bf, digits=3), "(two-sample independent)")
 Bayes Factor: 26.743 (two-sample independent)
 
 2. Bayes Factor of a paired two-sample T-test
 
-> bf = Pingouin.bayesian.bayesfactor_ttest(3.5, 20, 20, paired=True)
+> bf = Pingouin.bayesfactor_ttest(3.5, 20, 20, paired=true)
 > print("Bayes Factor: ", round.(bf, digits=3), "(two-sample paired)")
 Bayes Factor: 17.185 (two-sample paired)
 
 3. Bayes Factor of an one-sided one-sample T-test
 
-> bf = Pingouin.bayesian.bayesfactor_ttest(3.5, 20, tail='one-sided')
+> bf = Pingouin.bayesfactor_ttest(3.5, 20, tail="one-sided")
 > print("Bayes Factor: ", round.(bf, digits=3), "(one-sample)")
 Bayes Factor: 34.369 (one-sample)
 
 4. Now specifying the direction of the test
 
 > tval = -3.5
-> bf_greater = Pingouin.bayesian.bayesfactor_ttest(tval, 20, tail='greater')
-> bf_less = Pingouin.bayesian.bayesfactor_ttest(tval, 20, tail='less')
+> bf_greater = Pingouin.bayesfactor_ttest(tval, 20, tail="greater")
+> bf_less = Pingouin.bayesfactor_ttest(tval, 20, tail="less")
 > print("BF10-greater: ", round.(bf_greater, digits=3), " | BF10-less: ", round.(bf_less, digits=3))
 BF10-greater: 0.029 | BF10-less: 34.369
 """
 function bayesfactor_ttest(t::Float64,
                            nx::Int64,
-                           ny::Int64=nothing,
+                           ny::Union{Int64,Nothing}=nothing;
                            paired::Bool=false,
                            tail::String="two-sided",
                            r::Float64=.707)::Float64
@@ -391,15 +396,14 @@ function bayesfactor_ttest(t::Float64,
 
     # Function to be integrated
     function f(g, t, n, r, df)
-        return (1 + n * g * r^2)^(-.5) * (1 + t^2 / ((1 + n * g * r^2) * df))^(-(df + 1) / 2) * \
-               (2 * π)^(-.5) * g^(-3. / 2) * exp(-1 / (2 * g))
+        return (1 + n * g * r^2)^(-.5) * (1 + t^2 / ((1 + n * g * r^2) * df))^(-(df + 1) / 2) * (2 * π)^(-.5) * g^(-3. / 2) * exp(-1 / (2 * g))
     end
 
     # Define n and degrees of freedom
     if one_sample || paired
         n = nx
         df = n - 1
-    else
+        else
         n = nx * ny / (nx + ny)
         df = nx + ny - 2
     end

@@ -1,7 +1,8 @@
 using Distributions
 using StatsBase
 
-"""Robust outlier detection based on the MAD-median rule.
+"""
+Robust outlier detection based on the MAD-median rule.
 
 Parameters
 ----------
