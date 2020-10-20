@@ -153,6 +153,7 @@ function compute_effsize(x::Array{<:Number},
                          y::Array{<:Number};
                          paired::Bool=false,
                          eftype::String="cohen")::Float64
+    # todo: add RBC and Matched-Pair RBC
     if !_check_eftype(eftype)
         throw(DomainError(eftype, "Invalid eftype."))
     end
