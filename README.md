@@ -1,7 +1,7 @@
 # Pingouin.jl
 
 *A reimplementation of Raphaelvallat's Pingouin in Julia, from scratch.
-Currently at a really early stage, not usable at all.*
+Currently at a really early stage, usable, but please double check your results.*
 
 I'm a PhD student who has to do statistical analysis. I'm also interested in
 Julia. To learn Julia, I decided to reimplement my favorite stats lib I used in
@@ -23,11 +23,11 @@ Pingouin is designed for users who want simple yet exhaustive stats functions:
 
 - [x] Distribution,
 - [x] Effect sizes,
+- [x] Bayesian,
 - [ ] **Non-parametric [WIP]**,
 - [ ] ANOVA and T-test,
 - [ ] Correlation and regression,
 - [ ] Multiple comparisons and post-hoc tests,
-- [ ] Bayesian,
 - [ ] Circular,
 - [ ] Contingency,
 - [ ] Multivariate tests,
