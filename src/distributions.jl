@@ -8,40 +8,41 @@ include("_shapiro.jl")
 include("_homoscedasticity.jl")
 
 """
+    gzscore(x)
+
 Geometric standard (Z) score.
 
-Parameters
+Arguments
 ----------
-x : array_like
-    Array of raw values
+- `x::Array{<:Number}`: Array of raw values
 
 Returns
 -------
-gzscore : array_like
-    Array of geometric z-scores (same shape as x)
+- `gzscore::Array{<:Number}`: Array of geometric z-scores (same shape as x)
 
 Notes
 -----
 Geometric Z-scores are better measures of dispersion than arithmetic
 z-scores when the sample data come from a log-normally distributed
-population [1]_.
+population [1].
 
-Given the raw scores :math:`x`, the geometric mean :math:`\\mu_g` and
-the geometric standard deviation :math:`\\sigma_g`,
+Given the raw scores \$x\$, the geometric mean \$\\mu_g\$ and
+the geometric standard deviation \$\\sigma_g\$,
 the standard score is given by the formula:
 
-.. math:: z = \\frac{log(x) - log(\\mu_g)}{log(\\sigma_g)}
+\$z = \\frac{log(x) - log(\\mu_g)}{log(\\sigma_g)}\$
 
 References
 ----------
-.. [1] https://en.wikipedia.org/wiki/Geometric_standard_deviation
+[1] https://en.wikipedia.org/wiki/Geometric_standard_deviation
 
 Examples
 --------
 Standardize a lognormal-distributed vector:
 
->>> raw = [1,4,5,4,1,2,5,8,6,6,9,8,3]
->>> z = Pingouin.gzscore(raw)
+```julia-repl
+julia> raw = [1,4,5,4,1,2,5,8,6,6,9,8,3]
+julia> z = Pingouin.gzscore(raw)
 13-element Array{Float64,1}:
  -1.8599725059104346
   0.03137685347921089
@@ -54,6 +55,7 @@ Standardize a lognormal-distributed vector:
   1.1377453044851344
   0.9770515331740336
  -0.3611136007126501
+```
 """
 function gzscore(x::Array{<:Number})::Array{<:Number}
     # Geometric mean
@@ -66,36 +68,38 @@ end
 
 
 """
+    anderson(x[, dist])
+
 Anderson-Darling test of distribution.
 
-Parameters
+Arguments
 ----------
-sample1, sample2,... : array_like
-    Array of sample data. May be different lengths.
-dist : Union{String, Distribution}
-    Distribution ("norm", "expon", "logistic", "gumbel")
+- `x::Array{<:Number}`: Array of sample data. May be different lengths,
+- `dist::Union{String, Distribution}`: Distribution ("norm", "expon", "logistic", "gumbel").
 
 Returns
 -------
-H : boolean
-    True if data comes from this distribution.
-P : float
-    The significance levels for the corresponding critical values in %.
-    (See :`HypothesisTests.OneSampleADTest` for more details)
+- `H::Bool`: True if data comes from this distribution,
+- `P::Float64`: The significance levels for the corresponding critical values in %.
+(See :`HypothesisTests.OneSampleADTest` for more details).
 
 Examples
 --------
 1. Test that an array comes from a normal distribution
 
->>> x = [2.3, 5.1, 4.3, 2.6, 7.8, 9.2, 1.4]
->>> Pingouin.anderson(x, dist="norm")
+```julia-repl
+julia> x = [2.3, 5.1, 4.3, 2.6, 7.8, 9.2, 1.4]
+julia> Pingouin.anderson(x, dist="norm")
 (false, 8.571428568870942e-5)
+```
 
 2. Test that an array comes from a custom distribution
 
->>> x = [2.3, 5.1, 4.3, 2.6, 7.8, 9.2, 1.4]
->>> Pingouin.anderson(x, dist=Normal(1,5))
+```julia-repl
+> x = [2.3, 5.1, 4.3, 2.6, 7.8, 9.2, 1.4]
+> Pingouin.anderson(x, dist=Normal(1,5))
 (false, 0.04755873570126501)
+```
 """
 function anderson(x::Array{<:Number};
                   dist::Union{String, Distribution}=Normal(),
@@ -122,120 +126,121 @@ end
 
 
 """
+    normality(data[, dv, group, method, α])
+
 Univariate normality test.
 
-    Parameters
-    ----------
-    data : `DataFrame`, series, list or 1D array
-        Iterable. Can be either a single list, 1D array,
-        or a wide- or long-format dataframe.
-    dv : str
-        Dependent variable (only when ``data`` is a long-format dataframe).
-    group : str
-        Grouping variable (only when ``data`` is a long-format dataframe).
-    method : str
-        Normality test. `'shapiro'` (default) performs the Shapiro-Wilk test
-        using the AS R94 algorithm. If the kurtosis is higher than 3, it 
-        performs a Shapiro-Francia test for leptokurtic distributions.
-        Supported values: ["shapiro", "jarque_bera"].
-    alpha : float64
-        Significance level.
+Arguments
+----------
+- `data`: Iterable. Can be either a single list, 1D array, or a wide- or long-format dataframe.
+- `dv::Union{Symbol, String, Nothing}`: Dependent variable (only when ``data`` is a long-format dataframe).
+- `group::Union{Symbol, String, Nothing}`: Grouping variable (only when ``data`` is a long-format dataframe).
+- `method::String`: Normality test. `'shapiro'` (default) performs the Shapiro-Wilk test
+using the AS R94 algorithm. If the kurtosis is higher than 3, it 
+performs a Shapiro-Francia test for leptokurtic distributions.
+Supported values: ["shapiro", "jarque_bera"].
+- `α::Float64`: Significance level.
 
-    Returns
-    -------
-    stats : `DataFrame`
+Returns
+-------
+- `stats::DataFrame`:
+    * `W`: Test statistic,
+    * `pval`: p-value,
+    * `normal`: true if `data` is normally distributed.
 
-        * ``'W'``: Test statistic.
-        * ``'pval'``: p-value.
-        * ``'normal'``: True if ``data`` is normally distributed.
+See Also
+--------
+- [`homoscedasticity`](@ref): Test equality of variance.
+- [`sphericity`](@ref): Mauchly's test for sphericity.
 
-    See Also
-    --------
-    homoscedasticity : Test equality of variance.
-    sphericity : Mauchly's test for sphericity.
+Notes
+-----
+The Shapiro-Wilk test calculates a :math:`W` statistic that tests whether a
+random sample \$x_1, x_2, ..., x_n\$ comes from a normal distribution.
 
-    Notes
-    -----
-    The Shapiro-Wilk test calculates a :math:`W` statistic that tests whether a
-    random sample :math:`x_1, x_2, ..., x_n` comes from a normal distribution.
+The \$W\$ is normalized (\$W = (W - μ) / σ\$)
 
-    The :math:`W` is normalized (:math:`W = (W - μ) / σ`)
+The null-hypothesis of this test is that the population is normally
+distributed. Thus, if the p-value is less than the
+chosen alpha level (typically set at 0.05), then the null hypothesis is
+rejected and there is evidence that the data tested are not normally
+distributed.
 
-    The null-hypothesis of this test is that the population is normally
-    distributed. Thus, if the p-value is less than the
-    chosen alpha level (typically set at 0.05), then the null hypothesis is
-    rejected and there is evidence that the data tested are not normally
-    distributed.
+The result of the Shapiro-Wilk test should be interpreted with caution in
+the case of large sample sizes (>5000). Indeed, quoting from
+[Wikipedia](https://en.wikipedia.org/wiki/Shapiro%E2%80%93Wilk_test):
 
-    The result of the Shapiro-Wilk test should be interpreted with caution in
-    the case of large sample sizes (>5000). Indeed, quoting from
-    `Wikipedia <https://en.wikipedia.org/wiki/Shapiro%E2%80%93Wilk_test>`_:
+*"Like most statistical significance tests, if the sample size is
+sufficiently large this test may detect even trivial departures from
+the null hypothesis (i.e., although there may be some statistically
+significant effect, it may be too small to be of any practical
+significance); thus, additional investigation of the effect size is
+typically advisable, e.g., a Q–Q plot in this case."*
 
-        *"Like most statistical significance tests, if the sample size is
-        sufficiently large this test may detect even trivial departures from
-        the null hypothesis (i.e., although there may be some statistically
-        significant effect, it may be too small to be of any practical
-        significance); thus, additional investigation of the effect size is
-        typically advisable, e.g., a Q–Q plot in this case."*
+The Jarque-Bera statistic is to test the null hypothesis that a real-valued vector \$y\$
+is normally distributed. Note that the approximation by the Chi-squared distribution does
+not work well and the speed of convergence is slow.
+In small samples, the test tends to be over-sized for nominal levels up to about 3% and
+under-sized for larger nominal levels (Mantalos, 2010).
 
-    The Jarque-Bera statistic is to test the null hypothesis that a real-valued vector `y`
-    is normally distributed. Note that the approximation by the Chi-squared distribution does
-    not work well and the speed of convergence is slow.
-    In small samples, the test tends to be over-sized for nominal levels up to about 3% and
-    under-sized for larger nominal levels (Mantalos, 2010).
+Note that missing values are automatically removed (casewise deletion).
 
-    Note that missing values are automatically removed (casewise deletion).
+References
+----------
+* Shapiro, S. S., & Wilk, M. B. (1965). An analysis of variance test
+for normality (complete samples). Biometrika, 52(3/4), 591-611.
 
-    References
-    ----------
-    * Shapiro, S. S., & Wilk, M. B. (1965). An analysis of variance test
-    for normality (complete samples). Biometrika, 52(3/4), 591-611.
+* Panagiotis Mantalos, 2011, "The three different measures of the sample skewness and
+kurtosis and the effects to the Jarque-Bera test for normality", International Journal
+of Computational Economics and Econometrics, Vol. 2, No. 1,
+[link](http://dx.doi.org/10.1504/IJCEE.2011.040576).
 
-    * Panagiotis Mantalos, 2011, "The three different measures of the sample skewness and
-    kurtosis and the effects to the Jarque-Bera test for normality", International Journal
-    of Computational Economics and Econometrics, Vol. 2, No. 1,
-    [link](http://dx.doi.org/10.1504/IJCEE.2011.040576).
+* https://www.itl.nist.gov/div898/handbook/prc/section2/prc213.htm
 
-    * https://www.itl.nist.gov/div898/handbook/prc/section2/prc213.htm
+* [Jarque-Bera test on Wikipedia](https://en.wikipedia.org/wiki/Jarque–Bera_test)
 
-    * [Jarque-Bera test on Wikipedia](https://en.wikipedia.org/wiki/Jarque–Bera_test)
+Examples
+--------
+1. Shapiro-Wilk test on a 1D array
 
-    Examples
-    --------
-    1. Shapiro-Wilk test on a 1D array
-    >>> dataset = Pingouin.read_dataset("anova")
-    >>> Pingouin.normality(dataset["Pain threshold"])
-    1×3 DataFrame
-    │ Row │ W         │ pval     │ normal │
-    │     │ Float64   │ Float64  │ Bool   │
-    ├─────┼───────────┼──────────┼────────┤
-    │ 1   │ -0.842541 │ 0.800257 │ 1      │
+```julia-repl
+julia> dataset = Pingouin.read_dataset("anova")
+julia> Pingouin.normality(dataset["Pain threshold"])
+1×3 DataFrame
+│ Row │ W         │ pval     │ normal │
+│     │ Float64   │ Float64  │ Bool   │
+├─────┼───────────┼──────────┼────────┤
+│ 1   │ -0.842541 │ 0.800257 │ 1      │
+```
 
-    2. Wide-format dataframe using Jarque-Bera test
+2. Wide-format dataframe using Jarque-Bera test
 
-    >>> dataset = Pingouin.read_dataset("mediation")
-    >>> Pingouin.normality(dataset, method="jarque_bera")
-    │ Row │ dv     │ W        │ pval        │ normal │
-    │     │ Symbol │ Float64  │ Float64     │ Bool   │
-    ├─────┼────────┼──────────┼─────────────┼────────┤
-    │ 1   │ X      │ 1.42418  │ 0.490618    │ 1      │
-    │ 2   │ M      │ 0.645823 │ 0.724038    │ 1      │
-    │ 3   │ Y      │ 0.261805 │ 0.877303    │ 1      │
-    │ 4   │ Mbin   │ 16.6735  │ 0.000239553 │ 0      │
-    │ 5   │ Ybin   │ 16.6675  │ 0.000240265 │ 0      │
-    │ 6   │ W1     │ 5.40923  │ 0.0668961   │ 1      │
-    │ 7   │ W2     │ 80.6857  │ 3.01529e-18 │ 0      │
+```julia-repl
+julia> dataset = Pingouin.read_dataset("mediation")
+julia> Pingouin.normality(dataset, method="jarque_bera")
+│ Row │ dv     │ W        │ pval        │ normal │
+│     │ Symbol │ Float64  │ Float64     │ Bool   │
+├─────┼────────┼──────────┼─────────────┼────────┤
+│ 1   │ X      │ 1.42418  │ 0.490618    │ 1      │
+│ 2   │ M      │ 0.645823 │ 0.724038    │ 1      │
+│ 3   │ Y      │ 0.261805 │ 0.877303    │ 1      │
+│ 4   │ Mbin   │ 16.6735  │ 0.000239553 │ 0      │
+│ 5   │ Ybin   │ 16.6675  │ 0.000240265 │ 0      │
+│ 6   │ W1     │ 5.40923  │ 0.0668961   │ 1      │
+│ 7   │ W2     │ 80.6857  │ 3.01529e-18 │ 0      │
+```
 
-    3. Long-format dataframe
+3. Long-format dataframe
 
-    >>> dataset = Pingouin.read_dataset("rm_anova2")
-    >>> Pingouin.normality(dataset, dv=:Performance, group=:Time)
-    │ Row │ Time   │ W         │ pval      │ normal │
-    │     │ String │ Float64   │ Float64   │ Bool   │
-    ├─────┼────────┼───────────┼───────────┼────────┤
-    │ 1   │ Pre    │ 0.0532374 │ 0.478771  │ 1      │
-    │ 2   │ Post   │ 1.30965   │ 0.0951576 │ 1      │
-
+```julia-repl
+julia> dataset = Pingouin.read_dataset("rm_anova2")
+julia> Pingouin.normality(dataset, dv=:Performance, group=:Time)
+│ Row │ Time   │ W         │ pval      │ normal │
+│     │ String │ Float64   │ Float64   │ Bool   │
+├─────┼────────┼───────────┼───────────┼────────┤
+│ 1   │ Pre    │ 0.0532374 │ 0.478771  │ 1      │
+│ 2   │ Post   │ 1.30965   │ 0.0951576 │ 1      │
+```
 """
 function normality(data;
                    dv::Union{Symbol, String, Nothing}=nothing,
@@ -282,7 +287,7 @@ function normality(data;
 end
 
 """
-Compute the Shapiro-Wilk statistic to test the null hypothesis that a real-valued vector `y` is normally distributed.
+Compute the Shapiro-Wilk statistic to test the null hypothesis that a real-valued vector \$y\$ is normally distributed.
 """
 function shapiro(x::Array{<:Number}, α::Float64=0.05)::DataFrame
     x = x[@. !isnan.(x)]
@@ -307,7 +312,7 @@ function shapiro(x::Array{<:Number}, α::Float64=0.05)::DataFrame
 end
 
 """
-Compute the Jarque-Bera statistic to test the null hypothesis that a real-valued vector `y` is normally distributed.
+Compute the Jarque-Bera statistic to test the null hypothesis that a real-valued vector \$y\$ is normally distributed.
 """
 function jarque_bera(x::Array{<:Number}, α::Float64=0.05)::DataFrame
     test = JarqueBeraTest(x)
@@ -322,120 +327,109 @@ end
 """
 Test equality of variance.
 
-    Parameters
-    ----------
-    data : `DataFrame` or array
-        Iterable. Can be either an Array iterables or a wide- or long-format
-        pandas dataframe.
-    dv : str
-        Dependent variable (only when ``data`` is a long-format dataframe).
-    group : str
-        Grouping variable (only when ``data`` is a long-format dataframe).
-    method : str
-        Statistical test. `'levene'` (default) performs the Levene test
-        and `'bartlett'` performs the Bartlett test.
-        The former is more robust to departure from normality.
-    alpha : float
-        Significance level.
+Arguments
+----------
+- `data`: Iterable. Can be either an Array iterables or a wide- or long-format dataframe.
+- `dv::Union{Symbol, String, Nothing}`: Dependent variable (only when ``data`` is a long-format dataframe).
+- `group::Union{Symbol, String, Nothing}`: Grouping variable (only when ``data`` is a long-format dataframe).
+- `method::String`: Statistical test. `'levene'` (default) performs the Levene test
+and `'bartlett'` performs the Bartlett test.
+The former is more robust to departure from normality.
+- `α::Float64`: Significance level.
 
-    Returns
-    -------
-    stats : `DataFrame`
+Returns
+-------
+- `stats::DataFrame`:
+    * `W/T`: Test statistic ('W' for Levene, 'T' for Bartlett), 
+    * `pval`: p-value,
+    * `equal_var`: true if `data` has equal variance.
 
-        * ``'W/T'``: Test statistic ('W' for Levene, 'T' for Bartlett)
-        * ``'pval'``: p-value
-        * ``'equal_var'``: True if ``data`` has equal variance
+See Also
+--------
+- [`normality`](@ref) : Univariate normality test.
+- [`sphericity`](@ref) : Mauchly's test for sphericity.
 
-    See Also
-    --------
-    normality : Univariate normality test.
-    sphericity : Mauchly's test for sphericity.
+Notes
+-----
+The **Bartlett** \$T\$ statistic [1] is defined as:
 
-    Notes
-    -----
-    The **Bartlett** :math:`T` statistic [1]_ is defined as:
+\$T = \\frac{(N-k) \\ln{s^{2}_{p}} - \\sum_{i=1}^{k}(N_{i} - 1) \\ln{s^{2}_{i}}}{1 + (1/(3(k-1)))((\\sum_{i=1}^{k}{1/(N_{i} - 1))} - 1/(N-k))}\$
 
-    .. math::
+where \$s_i^2\$ is the variance of the \$i^{th}\$ group,
+\$N\$ is the total sample size, \$N_i\$ is the sample size of the
+\$i^{th}\$ group, \$k\$ is the number of groups,
+and \$s_p^2\$ is the pooled variance.
 
-        T = \\frac{(N-k) \\ln{s^{2}_{p}} - \\sum_{i=1}^{k}(N_{i} - 1)
-        \\ln{s^{2}_{i}}}{1 + (1/(3(k-1)))((\\sum_{i=1}^{k}{1/(N_{i} - 1))}
-        - 1/(N-k))}
+The pooled variance is a weighted average of the group variances and is
+defined as:
 
-    where :math:`s_i^2` is the variance of the :math:`i^{th}` group,
-    :math:`N` is the total sample size, :math:`N_i` is the sample size of the
-    :math:`i^{th}` group, :math:`k` is the number of groups,
-    and :math:`s_p^2` is the pooled variance.
+\$s^{2}_{p} = \\sum_{i=1}^{k}(N_{i} - 1)s^{2}_{i}/(N-k)\$
 
-    The pooled variance is a weighted average of the group variances and is
-    defined as:
+The p-value is then computed using a chi-square distribution:
 
-    .. math:: s^{2}_{p} = \\sum_{i=1}^{k}(N_{i} - 1)s^{2}_{i}/(N-k)
+\$T \\sim \\chi^2(k-1)\$
 
-    The p-value is then computed using a chi-square distribution:
+The **Levene** \$W\$ statistic [2] is defined as:
 
-    .. math:: T \\sim \\chi^2(k-1)
+\$W = \\frac{(N-k)} {(k-1)} \\frac{\\sum_{i=1}^{k}N_{i}(\\overline{Z}_{i.}-\\overline{Z})^{2} } {\\sum_{i=1}^{k}\\sum_{j=1}^{N_i}(Z_{ij}-\\overline{Z}_{i.})^{2} }\$
 
-    The **Levene** :math:`W` statistic [2]_ is defined as:
+where \$Z_{ij} = |Y_{ij} - \\text{median}({Y}_{i.})|\$,
+\$\\overline{Z}_{i.}\$ are the group means of \$Z_{ij}\$ and
+\$\\overline{Z}\$ is the grand mean of \$Z_{ij}\$.
 
-    .. math::
+The p-value is then computed using a F-distribution:
 
-        W = \\frac{(N-k)} {(k-1)}
-        \\frac{\\sum_{i=1}^{k}N_{i}(\\overline{Z}_{i.}-\\overline{Z})^{2} }
-        {\\sum_{i=1}^{k}\\sum_{j=1}^{N_i}(Z_{ij}-\\overline{Z}_{i.})^{2} }
+\$W \\sim F(k-1, N-k)\$
 
-    where :math:`Z_{ij} = |Y_{ij} - \\text{median}({Y}_{i.})|`,
-    :math:`\\overline{Z}_{i.}` are the group means of :math:`Z_{ij}` and
-    :math:`\\overline{Z}` is the grand mean of :math:`Z_{ij}`.
+**WARNING:** Missing values are not supported for this function.
+Make sure to remove them before.
 
-    The p-value is then computed using a F-distribution:
+References
+----------
+[1] Bartlett, M. S. (1937). Properties of sufficiency and statistical
+tests. Proc. R. Soc. Lond. A, 160(901), 268-282.
 
-    .. math:: W \\sim F(k-1, N-k)
+[2] Brown, M. B., & Forsythe, A. B. (1974). Robust tests for the
+equality of variances. Journal of the American Statistical
+Association, 69(346), 364-367.
 
-    .. warning:: Missing values are not supported for this function.
-        Make sure to remove them before using the
-        :py:meth:`pandas.DataFrame.dropna` or :py:func:`pingouin.remove_na`
-        functions.
+Examples
+--------
+1. Levene test on a wide-format dataframe
 
-    References
-    ----------
-    .. [1] Bartlett, M. S. (1937). Properties of sufficiency and statistical
-           tests. Proc. R. Soc. Lond. A, 160(901), 268-282.
+```julia-repl
+julia> data = Pingouin.read_dataset("mediation")
+julia> Pingouin.homoscedasticity(data[["X", "Y", "M"]])
+1×3 DataFrame
+│ Row │ W       │ pval     │ equal_var │
+│     │ Float64 │ Float64  │ Bool      │
+├─────┼─────────┼──────────┼───────────┤
+│ 1   │ 1.17352 │ 0.310707 │ 1         │
+```
 
-    .. [2] Brown, M. B., & Forsythe, A. B. (1974). Robust tests for the
-           equality of variances. Journal of the American Statistical
-           Association, 69(346), 364-367.
+2. Bartlett test using an array of arrays
 
-    Examples
-    --------
-    1. Levene test on a wide-format dataframe
+```julia-repl
+julia> data = [[4, 8, 9, 20, 14], [5, 8, 15, 45, 12]]
+julia> Pingouin.homoscedasticity(data, method="bartlett", α=.05)
+1×3 DataFrame
+│ Row │ T       │ pval     │ equal_var │
+│     │ Float64 │ Float64  │ Bool      │
+├─────┼─────────┼──────────┼───────────┤
+│ 1   │ 2.87357 │ 0.090045 │ 1         │
+```
 
-    >>> data = Pingouin.read_dataset("mediation")
-    >>> Pingouin.homoscedasticity(data[["X", "Y", "M"]])
-    1×3 DataFrame
-    │ Row │ W       │ pval     │ equal_var │
-    │     │ Float64 │ Float64  │ Bool      │
-    ├─────┼─────────┼──────────┼───────────┤
-    │ 1   │ 1.17352 │ 0.310707 │ 1         │
+3. Long-format dataframe
 
-    2. Bartlett test using an array of arrays
-
-    >>> data = [[4, 8, 9, 20, 14], [5, 8, 15, 45, 12]]
-    >>> Pingouin.homoscedasticity(data, method="bartlett", α=.05)
-    1×3 DataFrame
-    │ Row │ T       │ pval     │ equal_var │
-    │     │ Float64 │ Float64  │ Bool      │
-    ├─────┼─────────┼──────────┼───────────┤
-    │ 1   │ 2.87357 │ 0.090045 │ 1         │
-
-    3. Long-format dataframe
-
-    >>> data = Pingouin.read_dataset("rm_anova2")
-    >>> Pingouin.homoscedasticity(data, dv="Performance", group="Time")
-    1×3 DataFrame
-    │ Row │ W       │ pval      │ equal_var │
-    │     │ Float64 │ Float64   │ Bool      │
-    ├─────┼─────────┼───────────┼───────────┤
-    │ 1   │ 3.1922  │ 0.0792169 │ 1         │
+```julia-repl
+julia> data = Pingouin.read_dataset("rm_anova2")
+julia> Pingouin.homoscedasticity(data, dv="Performance", group="Time")
+1×3 DataFrame
+│ Row │ W       │ pval      │ equal_var │
+│     │ Float64 │ Float64   │ Bool      │
+├─────┼─────────┼───────────┼───────────┤
+│ 1   │ 3.1922  │ 0.0792169 │ 1         │
+```
 """
 function homoscedasticity(data;
                           dv::Union{Symbol, String, Nothing}=nothing,
@@ -499,108 +493,87 @@ function homoscedasticity(data;
 end
 
 
-"""Mauchly and JNS test for sphericity.
+"""
+    sphericity(data[, dv, within, subject, method, α])
+
+Mauchly and JNS test for sphericity.
 
 Parameters
 ----------
-data : `DataFrame`
-    DataFrame containing the repeated measurements.
-    Only long-format dataframe are supported for this function.
-dv : string
-    Name of column containing the dependent variable.
-within : string
-    Name of column containing the within factor.
-    If ``within`` is a list with two strings, this function computes
-    the epsilon factor for the interaction between the two within-subject
-    factor.
-subject : string
-    Name of column containing the subject identifier (only required if
-    ``data`` is in long format).
-method : str
-    Method to compute sphericity:
-
-    * `'jns'`: John, Nagao and Sugiura test.
-    * `'mauchly'`: Mauchly test (default).
-
-alpha : float
-    Significance level
+- `data::DataFrame`: DataFrame containing the repeated measurements. Only long-format dataframe are supported for this function.
+- `dv::Union{Nothing, String, Symbol}`: Name of column containing the dependent variable.
+- `within::Union{Array{String}, Array{Symbol}, Nothing, String, Symbol}`: Name of column containing the within factor. If `within` is a list with two strings, this function computes the epsilon factor for the interaction between the two within-subject factor.
+- `subject::Union{Nothing, String, Symbol}`: Name of column containing the subject identifier (only required if `data` is in long format).
+- `method::String`: Method to compute sphericity:
+    * `"jns"`: John, Nagao and Sugiura test.
+    * `"mauchly"`: Mauchly test (default).
+- `α::Float64`: Significance level
 
 Returns
 -------
-spher : boolean
-    True if data have the sphericity property.
-W : float
-    Test statistic.
-chi2 : float
-    Chi-square statistic.
-dof : int
-    Degrees of freedom.
-pval : float
-    P-value.
+- `spher::Bool`: True if data have the sphericity property.
+- `W::Float64:` Test statistic.
+- `chi2::Float64`: Chi-square statistic.
+- `dof::Int64`:  Degrees of freedom.
+- `pval::Flot64`: P-value.
 
-Raises
+Throwing
 ------
-ValueError
-    When testing for an interaction, if both within-subject factors have
-    more than 2 levels (not yet supported in Pingouin).
+`DomainError` When testing for an interaction, if both within-subject factors have more than 2 levels (not yet supported in Pingouin).
 
 See Also
 --------
-epsilon : Epsilon adjustement factor for repeated measures.
-homoscedasticity : Test equality of variance.
-normality : Univariate normality test.
+- [`epsilon`](@ref): Epsilon adjustement factor for repeated measures.
+- [`homoscedasticity`](@ref): Test equality of variance.
+- [`normality`](@ref): Univariate normality test.
 
 Notes
 -----
-The **Mauchly** :math:`W` statistic [1]_ is defined by:
+The **Mauchly** \$W\$ statistic [1] is defined by:
 
-.. math::
+\$W = \\frac{\\prod \\lambda_j}{(\\frac{1}{k-1} \\sum \\lambda_j)^{k-1}}\$
 
-    W = \\frac{\\prod \\lambda_j}{(\\frac{1}{k-1} \\sum \\lambda_j)^{k-1}}
-
-where :math:`\\lambda_j` are the eigenvalues of the population
+where \$\\lambda_j\$ are the eigenvalues of the population
 covariance matrix (= double-centered sample covariance matrix) and
-:math:`k` is the number of conditions.
+\$k\$ is the number of conditions.
 
-From then, the :math:`W` statistic is transformed into a chi-square
-score using the number of observations per condition :math:`n`
+From then, the \$W\$ statistic is transformed into a chi-square
+score using the number of observations per condition \$n\$
 
-.. math:: f = \\frac{2(k-1)^2+k+1}{6(k-1)(n-1)}
-.. math:: \\chi_w^2 = (f-1)(n-1) \\text{log}(W)
+\$f = \\frac{2(k-1)^2+k+1}{6(k-1)(n-1)}\$
+\$\\chi_w^2 = (f-1)(n-1) \\text{log}(W)\$
 
 The p-value is then approximated using a chi-square distribution:
 
-.. math:: \\chi_w^2 \\sim \\chi^2(\\frac{k(k-1)}{2}-1)
+\$\\chi_w^2 \\sim \\chi^2(\\frac{k(k-1)}{2}-1)\$
 
-The **JNS** :math:`V` statistic ([2]_, [3]_, [4]_) is defined by:
+The **JNS** \$V\$ statistic ([2], [3], [4]) is defined by:
 
-.. math::
+\$V = \\frac{(\\sum_j^{k-1} \\lambda_j)^2}{\\sum_j^{k-1} \\lambda_j^2}\$
 
-    V = \\frac{(\\sum_j^{k-1} \\lambda_j)^2}{\\sum_j^{k-1} \\lambda_j^2}
-
-.. math:: \\chi_v^2 = \\frac{n}{2}  (k-1)^2 (V - \\frac{1}{k-1})
+\$\\chi_v^2 = \\frac{n}{2}  (k-1)^2 (V - \\frac{1}{k-1})\$
 
 and the p-value approximated using a chi-square distribution
 
-.. math:: \\chi_v^2 \\sim \\chi^2(\\frac{k(k-1)}{2}-1)
+\$\\chi_v^2 \\sim \\chi^2(\\frac{k(k-1)}{2}-1)\$
 
-Missing values are automatically removed from ``data`` (listwise deletion).
+Missing values are automatically removed from `data` (listwise deletion).
 
 References
 ----------
-.. [1] Mauchly, J. W. (1940). Significance test for sphericity of a normal
-       n-variate distribution. The Annals of Mathematical Statistics,
-       11(2), 204-209.
+[1] Mauchly, J. W. (1940). Significance test for sphericity of a normal
+n-variate distribution. The Annals of Mathematical Statistics,
+11(2), 204-209.
 
-.. [2] Nagao, H. (1973). On some test criteria for covariance matrix.
-       The Annals of Statistics, 700-709.
+[2] Nagao, H. (1973). On some test criteria for covariance matrix.
+The Annals of Statistics, 700-709.
 
-.. [3] Sugiura, N. (1972). Locally best invariant test for sphericity and
-       the limiting distributions. The Annals of Mathematical Statistics,
-       1312-1316.
+[3] Sugiura, N. (1972). Locally best invariant test for sphericity and
+the limiting distributions. The Annals of Mathematical Statistics,
+1312-1316.
 
-.. [4] John, S. (1972). The distribution of a statistic used for testing
-       sphericity of normal distributions. Biometrika, 59(1), 169-173.
+[4] John, S. (1972). The distribution of a statistic used for testing
+sphericity of normal distributions. Biometrika, 59(1), 169-173.
 
 See also http://www.real-statistics.com/anova-repeated-measures/sphericity/
 
@@ -608,24 +581,29 @@ Examples
 --------
 Mauchly test for sphericity using a wide-format dataframe
 
->>> data = DataFrame(A = [2.2, 3.1, 4.3, 4.1, 7.2],
+```julia-repl
+julia> data = DataFrame(A = [2.2, 3.1, 4.3, 4.1, 7.2],
                      B = [1.1, 2.5, 4.1, 5.2, 6.4],
                      C = [8.2, 4.5, 3.4, 6.2, 7.2])
->>> Pingouin.sphericity(data)
+julia> Pingouin.sphericity(data)
 │ Row │ spher │ W        │ chi2    │ dof     │ pval      │
 │     │ Bool  │ Float64  │ Float64 │ Float64 │ Float64   │
 ├─────┼───────┼──────────┼─────────┼─────────┼───────────┤
 │ 1   │ 1     │ 0.210372 │ 4.67663 │ 2.0     │ 0.0964902 │
+```
 
 John, Nagao and Sugiura (JNS) test
 
->>> Pingouin.sphericity(data, method="jns")[:pval]  # P-value only
+```julia-repl
+julia> Pingouin.sphericity(data, method="jns")[:pval]  # P-value only
 0.045604240307520305
+```
 
 Now using a long-format dataframe
 
->>> data = Pingouin.read_dataset("rm_anova2")
->>> head(data)
+```julia-repl
+julia> data = Pingouin.read_dataset("rm_anova2")
+julia> head(data)
 6x4 DataFrame
 │ Row │ Subject │ Time   │ Metric  │ Performance │
 │     │ Int64   │ String │ String  │ Int64       │
@@ -636,24 +614,29 @@ Now using a long-format dataframe
 │ 4   │ 4       │ Pre    │ Product │ 12          │
 │ 5   │ 5       │ Pre    │ Product │ 19          │
 │ 6   │ 6       │ Pre    │ Product │ 6           │
+```
 
 Let's first test sphericity for the *Time* within-subject factor
 
->>> Pingouin.sphericity(data, dv=:Performance, subject=:Subject,
+```julia-repl
+julia> Pingouin.sphericity(data, dv=:Performance, subject=:Subject,
                         within=:Time)
 │ Row │ spher │ W       │ chi2    │ dof   │ pval    │
 │     │ Bool  │ Float64 │ Float64 │ Int64 │ Float64 │
 ├─────┼───────┼─────────┼─────────┼───────┼─────────┤
 │ 1   │ 1     │ NaN     │ NaN     │ 1     │ 1.0     │
+```
 
 Since *Time* has only two levels (Pre and Post), the sphericity assumption
 is necessarily met.
 
 The *Metric* factor, however, has three levels:
 
->>> Pingouin.sphericity(data, dv="Performance", subject="Subject",
+```julia-repl
+julia> Pingouin.sphericity(data, dv="Performance", subject="Subject",
                         within=["Metric"])[:pval]
 0.8784417991645139
+```
 
 The p-value value is very large, and the test therefore indicates that
 there is no violation of sphericity.
@@ -663,13 +646,15 @@ repeated measures factor. The current implementation in Pingouin only works
 if at least one of the two within-subject factors has no more than two
 levels.
 
->>> Pingouin.sphericity(data, dv="Performance",
+```julia-repl
+julia> Pingouin.sphericity(data, dv="Performance",
                         subject="Subject",
                         within=["Time", "Metric"])
 │ Row │ spher │ W        │ chi2    │ dof     │ pval     │
 │     │ Bool  │ Float64  │ Float64 │ Float64 │ Float64  │
 ├─────┼───────┼──────────┼─────────┼─────────┼──────────┤
 │ 1   │ 1     │ 0.624799 │ 3.7626  │ 2.0     │ 0.152392 │
+```
 
 Here again, there is no violation of sphericity acccording to Mauchly's
 test.
@@ -762,71 +747,53 @@ end
 
 
 """
+    epsilon(data[, dv, within, subject, correction])
+
 Epsilon adjustement factor for repeated measures.
 
-Parameters
+Arguments
 ----------
-data : `DataFrame`
-    DataFrame containing the repeated measurements.
-    Only long-format dataframe are supported for this function.
-dv : string
-    Name of column containing the dependent variable.
-within : string
-    Name of column containing the within factor (only required if ``data``
-    is in long format).
-    If ``within`` is a list with two strings, this function computes
-    the epsilon factor for the interaction between the two within-subject
-    factor.
-subject : string
-    Name of column containing the subject identifier (only required if
-    ``data`` is in long format).
-correction : string
-    Specify the epsilon version:
-
-    * ``"gg"``: Greenhouse-Geisser
-    * ``"hf"``: Huynh-Feldt
-    * ``"lb"``: Lower bound
+- `data::Union{Array{<:Number}, DataFrame}`: DataFrame containing the repeated measurements. Only long-format dataframe are supported for this function.
+- `dv::Union{Symbol, String, Nothing}`: Name of column containing the dependent variable.
+- `within::Union{Array{String}, Array{Symbol}, Symbol, String, Nothing}`: Name of column containing the within factor (only required if `data` is in long format). If `within` is a list with two strings, this function computes the epsilon factor for the interaction between the two within-subject factor.
+- `subject::Union{Symbol, String, Nothing}`: Name of column containing the subject identifier (only required if `data` is in long format).
+- `correction::String`: Specify the epsilon version:
+    * `"gg"`: Greenhouse-Geisser,
+    * `"hf"`: Huynh-Feldt,
+    * `"lb"`: Lower bound.
 
 Returns
 -------
-eps : float
-    Epsilon adjustement factor.
+eps::Float64: Epsilon adjustement factor.
 
 See Also
 --------
-sphericity : Mauchly and JNS test for sphericity.
-homoscedasticity : Test equality of variance.
+- [`sphericity`](@ref): Mauchly and JNS test for sphericity.
+- [`homoscedasticity`](@ref): Test equality of variance.
 
 Notes
 -----
 The lower bound epsilon is:
 
-.. math:: lb = \\frac{1}{\\text{dof}},
+\$lb = \\frac{1}{\\text{dof}}\$,
 
-where the degrees of freedom :math:`\\text{dof}` is the number of groups
-:math:`k` minus 1 for one-way design and :math:`(k_1 - 1)(k_2 - 1)`
+where the degrees of freedom \$\\text{dof}\$ is the number of groups
+\$k\$ minus 1 for one-way design and \$(k_1 - 1)(k_2 - 1)\$
 for two-way design
 
 The Greenhouse-Geisser epsilon is given by:
 
-.. math::
+\$\\epsilon_{GG} = \\frac{k^2(\\overline{\\text{diag}(S)} - \\overline{S})^2}{(k-1)(\\sum_{i=1}^{k}\\sum_{j=1}^{k}s_{ij}^2 - 2k\\sum_{j=1}^{k}\\overline{s_i}^2 + k^2\\overline{S}^2)}\$
 
-    \\epsilon_{GG} = \\frac{k^2(\\overline{\\text{diag}(S)} -
-    \\overline{S})^2}{(k-1)(\\sum_{i=1}^{k}\\sum_{j=1}^{k}s_{ij}^2 -
-    2k\\sum_{j=1}^{k}\\overline{s_i}^2 + k^2\\overline{S}^2)}
-
-where :math:`S` is the covariance matrix, :math:`\\overline{S}` the
-grandmean of S and :math:`\\overline{\\text{diag}(S)}` the mean of all the
+where \$S\$ is the covariance matrix, \$\\overline{S}\$ the
+grandmean of S and \$\\overline{\\text{diag}(S)}\$ the mean of all the
 elements on the diagonal of S (i.e. mean of the variances).
 
 The Huynh-Feldt epsilon is given by:
 
-.. math::
+\$\\epsilon_{HF} = \\frac{n(k-1)\\epsilon_{GG}-2}{(k-1) (n-1-(k-1)\\epsilon_{GG})}\$
 
-    \\epsilon_{HF} = \\frac{n(k-1)\\epsilon_{GG}-2}{(k-1)
-    (n-1-(k-1)\\epsilon_{GG})}
-
-where :math:`n` is the number of observations.
+where \$n\$ is the number of observations.
 
 Missing values are automatically removed from data (listwise deletion).
 
@@ -834,20 +801,23 @@ Examples
 --------
 Using a wide-format dataframe
 
->>> data = DataFrame(A = [2.2, 3.1, 4.3, 4.1, 7.2],
+```julia-repl
+julia> data = DataFrame(A = [2.2, 3.1, 4.3, 4.1, 7.2],
                      B = [1.1, 2.5, 4.1, 5.2, 6.4],
                      C = [8.2, 4.5, 3.4, 6.2, 7.2])
->>> Pingouin.epsilon(data, correction="gg")
+julia> Pingouin.epsilon(data, correction="gg")
 0.5587754577585018
->>> Pingouin.epsilon(data, correction="hf")
+julia> Pingouin.epsilon(data, correction="hf")
 0.6223448311539789
->>> Pingouin.epsilon(data, correction="lb")
+julia> Pingouin.epsilon(data, correction="lb")
 0.5
+```
 
 Now using a long-format dataframe
 
->>> data = Pingouin.read_dataset("rm_anova2")
->>> head(data)
+```julia-repl
+julia> data = Pingouin.read_dataset("rm_anova2")
+julia> head(data)
 6×4 DataFrame
 │ Row │ Subject │ Time   │ Metric  │ Performance │
 │     │ Int64   │ String │ String  │ Int64       │
@@ -858,21 +828,26 @@ Now using a long-format dataframe
 │ 4   │ 4       │ Pre    │ Product │ 12          │
 │ 5   │ 5       │ Pre    │ Product │ 19          │
 │ 6   │ 6       │ Pre    │ Product │ 6           │
+```
 
 Let's first calculate the epsilon of the *Time* within-subject factor
 
->>> Pingouin.epsilon(data, dv="Performance", subject="Subject",
+```julia-repl
+julia> Pingouin.epsilon(data, dv="Performance", subject="Subject",
                      within="Time")
 1.0
+```
 
 Since *Time* has only two levels (Pre and Post), the sphericity assumption
 is necessarily met, and therefore the epsilon adjustement factor is 1.
 
 The *Metric* factor, however, has three levels:
 
->>> Pingouin.epsilon(data, dv=:Performance, subject=:Subject,
+```julia-repl
+julia> Pingouin.epsilon(data, dv=:Performance, subject=:Subject,
                      within=[:Metric])
 0.9691029584899762
+```
 
 The epsilon value is very close to 1, meaning that there is no major
 violation of sphericity.
@@ -880,9 +855,11 @@ violation of sphericity.
 Now, let's calculate the epsilon for the interaction between the two
 repeated measures factor:
 
->>> Pingouin.epsilon(data, dv=:Performance, subject=:Subject,
+```julia-repl
+julia> Pingouin.epsilon(data, dv=:Performance, subject=:Subject,
                      within=[:Time, :Metric])
 0.727166420214127
+```
 """
 function epsilon(data::Union{Array{<:Number}, DataFrame};
                  dv::Union{Symbol, String, Nothing}=nothing,
