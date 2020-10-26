@@ -4,39 +4,33 @@ using SpecialFunctions
 using HypergeometricFunctions
 
 """
-Bayes factor of a binomial test with :math:`k` successes,
-:math:`n` trials and base probability :math:`p`.
+    bayesfactor_binom(k, n, p)
 
-Parameters
+Bayes factor of a binomial test with ``k`` successes,
+``n`` trials and base probability ``p``.
+
+Arguments
 ----------
-k : int
-    Number of successes.
-n : int
-    Number of trials.
-p : float
-    Base probability of success (range from 0 to 1).
+- `k::Int64`: Number of successes.
+- `n::Int64`: Number of trials.
+- `p::Float64`: Base probability of success (range from 0 to 1).
 
 Returns
 -------
-binom_bf : float
-    The Bayes Factor quantifies the evidence in favour of the
-    alternative hypothesis, where the null hypothesis is that
-    the random variable is binomially distributed with base probability
-    :math:`p`.
+- `binom_bf::Float64`: The Bayes Factor quantifies the evidence in favour of the alternative hypothesis, where the null hypothesis is that the random variable is binomially distributed with base probability ``p``.
 
 See also
 --------
-bayesfactor_pearson : Bayes Factor of a correlation
-bayesfactor_ttest : Bayes Factor of a T-test
+- [`bayesfactor_pearson`](@ref): Bayes Factor of a correlation
+- [`bayesfactor_ttest`](@ref): Bayes Factor of a T-test
 
 Notes
 -----
 Adapted from a Matlab code found at
 https://github.com/anne-urai/Tools/blob/master/stats/BayesFactors/binombf.m
 The Bayes Factor is given by the formula below:
-.. math::
-    BF_{10} = \\frac{\\int_0^1 \\binom{n}{k}g^k(1-g)^{n-k}}
-    {\\binom{n}{k} p^k (1-p)^{n-k}}
+
+\$BF_{10} = \\frac{\\int_0^1 \\binom{n}{k}g^k(1-g)^{n-k}} {\\binom{n}{k} p^k (1-p)^{n-k}}\$
 
 References
 ----------
@@ -49,12 +43,14 @@ We want to determine if a coin is fair. After tossing the coin 200 times
 in a row, we report 115 heads (hereafter referred to as "successes") and 85
 tails ("failures"). The Bayes Factor can be easily computed using Pingouin:
 
-> using Pingouin
-> bf = Pingouin.bayesfactor_binom(115, 200, 0.5)
-> # Note that Pingouin returns the BF-alt by default.
-> # BF-null is simply 1 / BF-alt
-> print("BF-null: ", 1 / bf, "; BF-alt: ", bf)
+```julia-repl
+julia> using Pingouin
+julia> bf = Pingouin.bayesfactor_binom(115, 200, 0.5)
+julia> # Note that Pingouin returns the BF-alt by default.
+julia> # BF-null is simply 1 / BF-alt
+julia> print("BF-null: ", 1 / bf, "; BF-alt: ", bf)
 BF-null: 1.197134330237549; BF-alt: 0.8353281455069195
+```
 
 Since the Bayes Factor of the null hypothesis ("the coin is fair") is
 higher than the Bayes Factor of the alternative hypothesis
@@ -67,10 +63,12 @@ Interestingly, a frequentist alternative to this test would give very
 different results. It can be performed using the
 `SciPy.stats.binom_test` function:
 
-> using SciPy
-> pval = SciPy.stats.binom_test(115, 200, p=0.5)
-> round.(pval, digits=5)
+```julia-repl
+julia> using SciPy
+julia> pval = SciPy.stats.binom_test(115, 200, p=0.5)
+julia> round.(pval, digits=5)
 0.04004
+```
 
 The binomial test rejects the null hypothesis that the coin is fair at the
 5% significance level (p=0.04). Thus, whereas a frequentist hypothesis test
@@ -78,9 +76,11 @@ would yield significant results at the 5% significance level, the Bayes
 factor does not find any evidence that the coin is unfair.
 Last example using a different base probability of successes
 
-> bf = Pingouin.bayesfactor_binom(100, 1000, 0.1)
-> print("Bayes Factor: ", round.(bf, digits=3))
+```julia-repl
+julia> bf = Pingouin.bayesfactor_binom(100, 1000, 0.1)
+julia> print("Bayes Factor: ", round.(bf, digits=3))
 Bayes Factor: 0.024
+```
 """
 function bayesfactor_binom(k::Int64,
                            n::Int64,
@@ -98,115 +98,110 @@ end
 
 
 """
+    bayesfactor_pearson(r, n[, tail, method, kappa])
+
 Bayes Factor of a Pearson correlation.
 
-Parameters
+Arguments
 ----------
-r : float
-    Pearson correlation coefficient.
-n : int
-    Sample size.
-tail : float
-    Tail of the alternative hypothesis. Can be *'two-sided'*,
-    *'one-sided'*, *'greater'* or *'less'*. *'greater'* corresponds to a
-    positive correlation, *'less'* to a negative correlation.
-    If *'one-sided'*, the directionality is inferred based on the ``r``
-    value (= *'greater'* if ``r`` > 0, *'less'* if ``r`` < 0).
-method : str
-    Method to compute the Bayes Factor. Can be *'ly'* (default) or
-    *'wetzels'*. The former has an exact analytical solution, while the
-    latter requires integral solving (and is therefore slower). *'wetzels'*
-    was the default in Pingouin <= 0.2.5. See Notes for details.
-kappa : float
-    Kappa factor. This is sometimes called the *rscale* parameter, and
-    is only used when ``method`` is *'ly'*.
+- `r::Float64`: Pearson correlation coefficient.
+- `n::Int64`: Sample size.
+- `tail::String`: Tail of the alternative hypothesis. Can be *'two-sided'*, *'one-sided'*, *'greater'* or *'less'*. *'greater'* corresponds to a positive correlation, *'less'* to a negative correlation. If *'one-sided'*, the directionality is inferred based on the ``r`` value (= *'greater'* if ``r`` > 0, *'less'* if ``r`` < 0).
+- `method::String`: Method to compute the Bayes Factor. Can be *'ly'* (default) or *'wetzels'*. The former has an exact analytical solution, while the latter requires integral solving (and is therefore slower). *'wetzels'* was the default in Pingouin <= 0.2.5. See Notes for details.
+- `kappa::Float64`: Kappa factor. This is sometimes called the *rscale* parameter, and
+is only used when ``method`` is *'ly'*.
 
 Returns
 -------
-bf : float
-    Bayes Factor (BF10).
-    The Bayes Factor quantifies the evidence in favour of the alternative
-    hypothesis.
+- `bf::Float64`: Bayes Factor (BF10).
+The Bayes Factor quantifies the evidence in favour of the alternative
+hypothesis.
 
 See also
 --------
-corr : (Robust) correlation between two variables
-pairwise_corr : Pairwise correlation between columns of a pandas DataFrame
-bayesfactor_ttest : Bayes Factor of a T-test
-bayesfactor_binom : Bayes Factor of a binomial test
+- [`corr`](@ref): (Robust) correlation between two variables,
+- [`pairwise_corr`](@ref): Pairwise correlation between columns of a pandas DataFrame,
+- [`bayesfactor_ttest`](@ref): Bayes Factor of a T-test,
+- [`bayesfactor_binom`](@ref): Bayes Factor of a binomial test.
 
 Notes
 -----
 To compute the Bayes Factor directly from the raw data, use the
 `pingouin.corr` function.
 The two-sided **Wetzels Bayes Factor** (also called *JZS Bayes Factor*)
-is calculated using the equation 13 and associated R code of [1]_:
-.. math::
-    \\text{BF}_{10}(n, r) = \\frac{\\sqrt{n/2}}{\\gamma(1/2)}*
-    \\int_{0}^{\\infty}e((n-2)/2)*
-    log(1+g)+(-(n-1)/2)log(1+(1-r^2)*g)+(-3/2)log(g)-n/2g
-where :math:`n` is the sample size, :math:`r` is the Pearson correlation
-coefficient and :math:`g` is is an auxiliary variable that is integrated
+is calculated using the equation 13 and associated R code of [1]:
+
+\$\\text{BF}_{10}(n, r) = \\frac{\\sqrt{n/2}}{\\gamma(1/2)}* \\int_{0}^{\\infty}e((n-2)/2)* log(1+g)+(-(n-1)/2)log(1+(1-r^2)*g)+(-3/2)log(g)-n/2g\$
+
+where ``n`` is the sample size, ``r`` is the Pearson correlation
+coefficient and ``g`` is is an auxiliary variable that is integrated
 out numerically. Since the Wetzels Bayes Factor requires solving an
 integral, it is slower than the analytical solution described below.
 The two-sided **Ly Bayes Factor** (also called *Jeffreys
-exact Bayes Factor*) is calculated using equation 25 of [2]_:
-.. math::
-    \\text{BF}_{10;k}(n, r) = \\frac{2^{\\frac{k-2}{k}}\\sqrt{\\pi}}
-    {\\beta(\\frac{1}{k}, \\frac{1}{k})} \\cdot
-    \\frac{\\Gamma(\\frac{2+k(n-1)}{2k})}{\\Gamma(\\frac{2+nk}{2k})}
-    \\cdot 2F_1(\\frac{n-1}{2}, \\frac{n-1}{2}, \\frac{2+nk}{2k}, r^2)
+exact Bayes Factor*) is calculated using equation 25 of [2]:
+
+\$\\text{BF}_{10;k}(n, r) = \\frac{2^{\\frac{k-2}{k}}\\sqrt{\\pi}} {\\beta(\\frac{1}{k}, \\frac{1}{k})} \\cdot \\frac{\\Gamma(\\frac{2+k(n-1)}{2k})}{\\Gamma(\\frac{2+nk}{2k})} \\cdot 2F_1(\\frac{n-1}{2}, \\frac{n-1}{2}, \\frac{2+nk}{2k}, r^2)\$
+
 The one-sided version is described in eq. 27 and 28 of Ly et al, 2016.
 Please take note that the one-sided test requires the
-`mpmath <http://mpmath.org/>`_ package.
+[mpmath](http://mpmath.org/) package.
 Results have been validated against JASP and the BayesFactor R package.
 
 References
 ----------
-.. [1] Ly, A., Verhagen, J. & Wagenmakers, E.-J. Harold Jeffreys’s default
-   Bayes factor hypothesis tests: Explanation, extension, and
-   application in psychology. J. Math. Psychol. 72, 19–32 (2016).
-.. [2] Wetzels, R. & Wagenmakers, E.-J. A default Bayesian hypothesis test
-   for correlations and partial correlations. Psychon. Bull. Rev. 19,
-   1057–1064 (2012).
+[1] Ly, A., Verhagen, J. & Wagenmakers, E.-J. Harold Jeffreys’s default
+Bayes factor hypothesis tests: Explanation, extension, and
+application in psychology. J. Math. Psychol. 72, 19–32 (2016).
+
+[2] Wetzels, R. & Wagenmakers, E.-J. A default Bayesian hypothesis test
+for correlations and partial correlations. Psychon. Bull. Rev. 19,
+1057–1064 (2012).
 
 Examples
 --------
 Bayes Factor of a Pearson correlation
 
-> using Pingouin
-> r, n = 0.6, 20
-> bf = Pingouin.bayesfactor_pearson(r, n)
-> print("Bayes Factor: ", round.(bf, digits=3))
+```julia-repl
+julia> using Pingouin
+julia> r, n = 0.6, 20
+julia> bf = Pingouin.bayesfactor_pearson(r, n)
+julia> print("Bayes Factor: ", round.(bf, digits=3))
 Bayes Factor: 10.634
+```
 
 Compare to Wetzels method:
 
-> bf = Pingouin.bayesfactor_pearson(r, n,
+```julia-repl
+julia> bf = Pingouin.bayesfactor_pearson(r, n,
                                     tail="two-sided",
                                     method="wetzels",
                                     kappa=1.)
-> print("Bayes Factor: ", round.(bf, digits=3))
+julia> print("Bayes Factor: ", round.(bf, digits=3))
 Bayes Factor: 8.221
+```
 
 One-sided test
 
-> bf10pos = Pingouin.bayesfactor_pearson(r, n, 
+```julia-repl
+julia> bf10pos = Pingouin.bayesfactor_pearson(r, n, 
                                          tail="one-sided",
                                          method="ly",
                                          kappa=1.0)
-> bf10neg = Pingouin.bayesfactor_pearson(r, n,
+julia> bf10neg = Pingouin.bayesfactor_pearson(r, n,
                                          tail="less",
                                          method="ly",
                                          kappa=1.0)
-> print("BF-pos: ", round.(bf10pos, digits=3)," BF-neg: ", round.(bf10neg, digits=3))
+julia> print("BF-pos: ", round.(bf10pos, digits=3)," BF-neg: ", round.(bf10neg, digits=3))
 BF-pos: 21.185, BF-neg: 0.082
+```
 
-We can also only pass ``tail='one-sided'`` and Pingouin will automatically
+We can also only pass `tail='one-sided'` and Pingouin will automatically
 infer the directionality of the test based on the ``r`` value.
 
-> print("BF: ", round.(bayesfactor_pearson(r, n, tail="one-sided"), digits=3))
+```julia-repl
+julia> print("BF: ", round.(bayesfactor_pearson(r, n, tail="one-sided"), digits=3))
 BF: 21.185
+```
 """
 function bayesfactor_pearson(r::Float64,
                              n::Int64;
@@ -279,99 +274,98 @@ end
 
 
 """
+    bayesfactor_ttest(t, nx[, ny, paired, tail, r])
+
+nx::Int64,
+ny::Union{Int64,Nothing}=nothing;
+paired::Bool=false,
+tail::String="two-sided",
+r::Float64=.707)::Float64
+
 Bayes Factor of a T-test.
 
 Parameters
 ----------
-t : float
-    T-value of the T-test
-nx : int
-    Sample size of first group
-ny : int
-    Sample size of second group (only needed in case of an independent
-    two-sample T-test)
-paired : boolean
-    Specify whether the two observations are related (i.e. repeated
-    measures) or independent.
-tail : string
-    Specify whether the test is `'one-sided'` or `'two-sided'`. Can also be
-    `'greater'` or `'less'` to specify the direction of the test.
-    .. warning:: One-sided Bayes Factor (BF) are simply obtained by
-        doubling the two-sided BF, which is not exactly the same behavior
-        as R or JASP. Be extra careful when interpretating one-sided BF,
-        and if you can, always double-check your results.
-r : float
-    Cauchy scale factor. Smaller values of ``r`` (e.g. 0.5), may be
-    appropriate when small effect sizes are expected a priori; larger
-    values of ``r`` are appropriate when large effect sizes are
-    expected (Rouder et al 2009). The default is
-    :math:`\\sqrt{2} / 2 \\approx 0.707`.
+- `t::Float64`: T-value of the T-test
+- `nx::Int64`: Sample size of first group
+- `ny::Int64`: Sample size of second group (only needed in case of an independent two-sample T-test)
+- `paired::Bool`: boolean Specify whether the two observations are related (i.e. repeated measures) or independent.
+- `tail::String`: string Specify whether the test is `'one-sided'` or `'two-sided'`. Can also be `'greater'` or `'less'` to specify the direction of the test.
+**WARNING**: One-sided Bayes Factor (BF) are simply obtained by
+doubling the two-sided BF, which is not exactly the same behavior
+as R or JASP. Be extra careful when interpretating one-sided BF,
+and if you can, always double-check your results.
+- `r::Float64`: Cauchy scale factor. Smaller values of ``r`` (e.g. 0.5), may be appropriate when small effect sizes are expected a priori; larger values of ``r`` are appropriate when large effect sizes are expected (Rouder et al 2009). The default is \$\\sqrt{2} / 2 \\approx 0.707\$.
 
 Returns
 -------
-bf : float
-    Scaled Jeffrey-Zellner-Siow (JZS) Bayes Factor (BF10).
-    The Bayes Factor quantifies the evidence in favour of the
-    alternative hypothesis.
+- `bf::Float64`: Scaled Jeffrey-Zellner-Siow (JZS) Bayes Factor (BF10). The Bayes Factor quantifies the evidence in favour of the alternative hypothesis.
 
 See also
 --------
-ttest : T-test
-pairwise_ttest : Pairwise T-tests
-bayesfactor_pearson : Bayes Factor of a correlation
-bayesfactor_binom : Bayes Factor of a binomial test
+- [`ttest`](@ref): T-test
+- [`pairwise_ttest`](@ref): Pairwise T-tests
+- [`bayesfactor_pearson`](@ref): Bayes Factor of a correlation
+- [`bayesfactor_binom`](@ref): Bayes Factor of a binomial test
 
 Notes
 -----
 Adapted from a Matlab code found at
 https://github.com/anne-urai/Tools/tree/master/stats/BayesFactors
 If you would like to compute the Bayes Factor directly from the raw data
-instead of from the T-value, use the :py:func:`pingouin.ttest` function.
+instead of from the T-value, use the [`pingouin.ttest`](@ref) function.
 The JZS Bayes Factor is approximated using the formula described
-in ref [1]_:
-.. math::
-    \\text{BF}_{10} = \\frac{\\int_{0}^{\\infty}(1 + Ngr^2)^{-1/2}
-    (1 + \\frac{t^2}{v(1 + Ngr^2)})^{-(v+1) / 2}(2\\pi)^{-1/2}g^
-    {-3/2}e^{-1/2g}}{(1 + \\frac{t^2}{v})^{-(v+1) / 2}}
-where :math:`t` is the T-value, :math:`v` the degrees of freedom,
-:math:`N` the sample size, :math:`r` the Cauchy scale factor
-(= prior on effect size) and :math:`g` is is an auxiliary variable
+in ref [1]:
+
+\$\\text{BF}_{10} = \\frac{\\int_{0}^{\\infty}(1 + Ngr^2)^{-1/2} (1 + \\frac{t^2}{v(1 + Ngr^2)})^{-(v+1) / 2}(2\\pi)^{-1/2}g^ {-3/2}e^{-1/2g}}{(1 + \\frac{t^2}{v})^{-(v+1) / 2}}\$
+
+where ``t`` is the T-value, ``v`` the degrees of freedom,
+``N`` the sample size, ``r`` the Cauchy scale factor
+(= prior on effect size) and ``g`` is is an auxiliary variable
 that is integrated out numerically.
 Results have been validated against JASP and the BayesFactor R package.
 
 References
 ----------
-.. [1] Rouder, J.N., Speckman, P.L., Sun, D., Morey, R.D., Iverson, G.,
-   2009. Bayesian t tests for accepting and rejecting the null hypothesis.
-   Psychon. Bull. Rev. 16, 225–237. https://doi.org/10.3758/PBR.16.2.225
+[1] Rouder, J.N., Speckman, P.L., Sun, D., Morey, R.D., Iverson, G.,
+2009. Bayesian t tests for accepting and rejecting the null hypothesis.
+Psychon. Bull. Rev. 16, 225–237. https://doi.org/10.3758/PBR.16.2.225
 
 Examples
 --------
 1. Bayes Factor of an independent two-sample T-test
 
-> bf = Pingouin.bayesfactor_ttest(3.5, 20, 20)
-> print("Bayes Factor: ", round.(bf, digits=3), "(two-sample independent)")
+```julia-repl
+julia> bf = Pingouin.bayesfactor_ttest(3.5, 20, 20)
+julia> print("Bayes Factor: ", round.(bf, digits=3), "(two-sample independent)")
 Bayes Factor: 26.743 (two-sample independent)
+```
 
 2. Bayes Factor of a paired two-sample T-test
 
-> bf = Pingouin.bayesfactor_ttest(3.5, 20, 20, paired=true)
-> print("Bayes Factor: ", round.(bf, digits=3), "(two-sample paired)")
+```julia-repl
+julia> bf = Pingouin.bayesfactor_ttest(3.5, 20, 20, paired=true)
+julia> print("Bayes Factor: ", round.(bf, digits=3), "(two-sample paired)")
 Bayes Factor: 17.185 (two-sample paired)
+```
 
 3. Bayes Factor of an one-sided one-sample T-test
 
-> bf = Pingouin.bayesfactor_ttest(3.5, 20, tail="one-sided")
-> print("Bayes Factor: ", round.(bf, digits=3), "(one-sample)")
+```julia-repl
+julia> bf = Pingouin.bayesfactor_ttest(3.5, 20, tail="one-sided")
+julia> print("Bayes Factor: ", round.(bf, digits=3), "(one-sample)")
 Bayes Factor: 34.369 (one-sample)
+```
 
 4. Now specifying the direction of the test
 
-> tval = -3.5
-> bf_greater = Pingouin.bayesfactor_ttest(tval, 20, tail="greater")
-> bf_less = Pingouin.bayesfactor_ttest(tval, 20, tail="less")
-> print("BF10-greater: ", round.(bf_greater, digits=3), " | BF10-less: ", round.(bf_less, digits=3))
+```julia-repl
+julia> tval = -3.5
+julia> bf_greater = Pingouin.bayesfactor_ttest(tval, 20, tail="greater")
+julia> bf_less = Pingouin.bayesfactor_ttest(tval, 20, tail="less")
+julia> print("BF10-greater: ", round.(bf_greater, digits=3), " | BF10-less: ", round.(bf_less, digits=3))
 BF10-greater: 0.029 | BF10-less: 34.369
+```
 """
 function bayesfactor_ttest(t::Float64,
                            nx::Int64,
