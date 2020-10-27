@@ -10,7 +10,7 @@ include("effsize.jl")
 
 Robust outlier detection based on the MAD-median rule.
 
-Parameters
+Arguments
 ----------
 - `a::Array{<:Number}`: Input array. Must be one-dimensional.
 
@@ -73,7 +73,7 @@ end
 Mann-Whitney U Test (= Wilcoxon rank-sum test). It is the non-parametric
 version of the independent T-test.
 
-Parameters
+Arguments
 ----------
 - `x, y::Array{<:Number}`: First and second set of observations. `x` and `y` must be independent.
 
@@ -203,7 +203,7 @@ end
 Wilcoxon signed-rank test. It is the non-parametric version of the
 paired T-test.
 
-Parameters
+Arguments
 ----------
 - `x, y::Array{<:Number}`: First and second set of observations. ``x`` and ``y`` must be related (e.g repeated measures) and, therefore, have the same number of samples. Note that a listwise deletion of missing values is automatically applied.
 

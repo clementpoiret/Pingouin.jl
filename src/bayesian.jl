@@ -276,15 +276,9 @@ end
 """
     bayesfactor_ttest(t, nx[, ny, paired, tail, r])
 
-nx::Int64,
-ny::Union{Int64,Nothing}=nothing;
-paired::Bool=false,
-tail::String="two-sided",
-r::Float64=.707)::Float64
-
 Bayes Factor of a T-test.
 
-Parameters
+Arguments
 ----------
 - `t::Float64`: T-value of the T-test
 - `nx::Int64`: Sample size of first group

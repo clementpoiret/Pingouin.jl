@@ -135,10 +135,7 @@ Arguments
 - `data`: Iterable. Can be either a single list, 1D array, or a wide- or long-format dataframe.
 - `dv::Union{Symbol, String, Nothing}`: Dependent variable (only when ``data`` is a long-format dataframe).
 - `group::Union{Symbol, String, Nothing}`: Grouping variable (only when ``data`` is a long-format dataframe).
-- `method::String`: Normality test. `'shapiro'` (default) performs the Shapiro-Wilk test
-using the AS R94 algorithm. If the kurtosis is higher than 3, it 
-performs a Shapiro-Francia test for leptokurtic distributions.
-Supported values: ["shapiro", "jarque_bera"].
+- `method::String`: Normality test. `'shapiro'` (default) performs the Shapiro-Wilk test using the AS R94 algorithm. If the kurtosis is higher than 3, it  performs a Shapiro-Francia test for leptokurtic distributions. Supported values: ["shapiro", "jarque_bera"].
 - `α::Float64`: Significance level.
 
 Returns
@@ -286,10 +283,11 @@ function normality(data;
     end
 end
 
-"""
-Compute the Shapiro-Wilk statistic to test the null hypothesis that a real-valued vector \$y\$ is normally distributed.
-"""
+
 function shapiro(x::Array{<:Number}, α::Float64=0.05)::DataFrame
+    """
+    Compute the Shapiro-Wilk statistic to test the null hypothesis that a real-valued vector \$y\$ is normally distributed.
+    """
     x = x[@. !isnan.(x)]
     
     n = length(x)
@@ -311,10 +309,11 @@ function shapiro(x::Array{<:Number}, α::Float64=0.05)::DataFrame
     return DataFrame(W=SW, pval=P, normal=!H)
 end
 
-"""
-Compute the Jarque-Bera statistic to test the null hypothesis that a real-valued vector \$y\$ is normally distributed.
-"""
+
 function jarque_bera(x::Array{<:Number}, α::Float64=0.05)::DataFrame
+    """
+    Compute the Jarque-Bera statistic to test the null hypothesis that a real-valued vector \$y\$ is normally distributed.
+    """
     test = JarqueBeraTest(x)
 
     JB = test.JB
@@ -324,7 +323,10 @@ function jarque_bera(x::Array{<:Number}, α::Float64=0.05)::DataFrame
     return DataFrame(W=JB, pval=P, normal=!H)
 end
 
+
 """
+    homoscedasticity(data[, dv, group, method, α])
+
 Test equality of variance.
 
 Arguments
@@ -332,9 +334,7 @@ Arguments
 - `data`: Iterable. Can be either an Array iterables or a wide- or long-format dataframe.
 - `dv::Union{Symbol, String, Nothing}`: Dependent variable (only when ``data`` is a long-format dataframe).
 - `group::Union{Symbol, String, Nothing}`: Grouping variable (only when ``data`` is a long-format dataframe).
-- `method::String`: Statistical test. `'levene'` (default) performs the Levene test
-and `'bartlett'` performs the Bartlett test.
-The former is more robust to departure from normality.
+- `method::String`: Statistical test. `'levene'` (default) performs the Levene test and `'bartlett'` performs the Bartlett test. The former is more robust to departure from normality.
 - `α::Float64`: Significance level.
 
 Returns
@@ -435,7 +435,7 @@ function homoscedasticity(data;
                           dv::Union{Symbol, String, Nothing}=nothing,
                           group::Union{Symbol, String, Nothing}=nothing,
                           method::String="levene",
-                          α::Float64=0.05)
+                          α::Float64=0.05)::DataFrame
     @assert method in ["levene", "bartlett"]
     func = eval(Meta.parse(method))
 
@@ -498,7 +498,7 @@ end
 
 Mauchly and JNS test for sphericity.
 
-Parameters
+Arguments
 ----------
 - `data::DataFrame`: DataFrame containing the repeated measurements. Only long-format dataframe are supported for this function.
 - `dv::Union{Nothing, String, Symbol}`: Name of column containing the dependent variable.
@@ -922,14 +922,14 @@ function epsilon(data::Union{Array{<:Number}, DataFrame};
 end
 
 
-"""
-Convert long-format dataframe (one and two-way designs).
-This internal function is used in Pingouin.epsilon and Pingouin.sphericity.
-"""
 function _transform_rm(data::DataFrame;
                        dv::Union{Symbol, String, Nothing}=nothing,
                        within::Union{Symbol, String, Nothing, Array{String}, Array{Symbol}}=nothing,
                        subject::Union{Symbol, String, Nothing}=nothing)::Tuple{Matrix, Array{Int64}}
+    """
+    Convert long-format dataframe (one and two-way designs).
+    This internal function is used in Pingouin.epsilon and Pingouin.sphericity.
+    """
     @assert Symbol(dv) in propertynames(data)
     @assert Symbol(subject) in propertynames(data)
     @assert !any(isnan.(data[dv]))

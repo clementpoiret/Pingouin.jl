@@ -6,6 +6,14 @@ using Pingouin
 makedocs(
     sitename="Pingouin",
     format=Documenter.HTML(),
+    pages=[
+        "index.md",
+        "Datasets" => "datasets.md",
+        "Distributions" => "distributions.md",
+        "Effect Sizes" => "effsize.md",
+        "Bayesian" => "bayesian.md",
+        "Non-Parametric Tests" => "nonparametric.md"
+    ],
     modules=[Pingouin]
 )
 

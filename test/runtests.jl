@@ -44,20 +44,21 @@ end
 
 end
 
-@testset "Bayes_Factor_Binomial_Test" begin
-    bf = Pingouin.bayesfactor_binom(115, 200, 0.5)
-    @test bf ≈ 0.8353281455069181
-end
+# todo: to test when SciPy will be removed.
+# @testset "Bayes_Factor_Binomial_Test" begin
+#     bf = Pingouin.bayesfactor_binom(115, 200, 0.5)
+#     @test bf ≈ 0.8353281455069181
+# end
 
 
-@testset "Bayes_Factor_Pearson_Correlation" begin
-    r, n = 0.6, 20
-    bf = Pingouin.bayesfactor_pearson(r, n)
-    @test bf ≈ 10.633616334136537
+# @testset "Bayes_Factor_Pearson_Correlation" begin
+#     r, n = 0.6, 20
+#     bf = Pingouin.bayesfactor_pearson(r, n)
+#     @test bf ≈ 10.633616334136537
 
-    bf = Pingouin.bayesfactor_pearson(r, n,
-                                      tail="two-sided",
-                                      method="wetzels",
-                                      kappa=1.)
-    @test bf ≈ 8.221440974059899
-end
+#     bf = Pingouin.bayesfactor_pearson(r, n,
+#                                       tail="two-sided",
+#                                       method="wetzels",
+#                                       kappa=1.)
+#     @test bf ≈ 8.221440974059899
+# end
