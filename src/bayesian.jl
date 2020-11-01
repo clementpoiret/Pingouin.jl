@@ -266,7 +266,7 @@ function bayesfactor_pearson(r::Float64,
             else
                 # We expect the correlation to be negative
                 bf10 = bf10neg
-            end
+end
         end
     end
     return bf10
@@ -370,7 +370,7 @@ function bayesfactor_ttest(t::Float64,
     # Check tails
     possible_tails = ["two-sided", "one-sided", "greater", "less"]
     @assert(tail in possible_tails, "Invalid tail argument.")
-    if ny == nothing || ny == 1
+    if ny === nothing || ny == 1
         one_sample = true 
     else
         one_sample = false

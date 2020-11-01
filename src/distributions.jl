@@ -7,6 +7,8 @@ using StatsBase
 include("_shapiro.jl")
 include("_homoscedasticity.jl")
 
+
+# gzscore
 """
     gzscore(x)
 
@@ -67,6 +69,19 @@ function gzscore(x::Array{<:Number})::Array{<:Number}
 end
 
 
+# anderson darling test
+function _get_dist_from_string(dist::String)::Distribution
+    if dist == "norm"
+        return Normal()
+    elseif dist == "expon"
+        return Exponential()
+    elseif dist == "logistic"
+        return Logistic()
+    elseif dist == "gumbel"
+        return Gumbel()
+    end
+end
+
 """
     anderson(x[, dist])
 
@@ -74,7 +89,7 @@ Anderson-Darling test of distribution.
 
 Arguments
 ----------
-- `x::Array{<:Number}`: Array of sample data. May be different lengths,
+- `x::Array{<:Number}`: Array of sample data. May be different lengths. Also support multiple arrays (see examples),
 - `dist::Union{String, Distribution}`: Distribution ("norm", "expon", "logistic", "gumbel").
 
 Returns
@@ -89,39 +104,59 @@ Examples
 
 ```julia-repl
 julia> x = [2.3, 5.1, 4.3, 2.6, 7.8, 9.2, 1.4]
-julia> Pingouin.anderson(x, dist="norm")
+julia> Pingouin.anderson(x, "norm")
 (false, 8.571428568870942e-5)
 ```
 
 2. Test that an array comes from a custom distribution
 
 ```julia-repl
-> x = [2.3, 5.1, 4.3, 2.6, 7.8, 9.2, 1.4]
-> Pingouin.anderson(x, dist=Normal(1,5))
+julia> using Distributions
+julia> x = [2.3, 5.1, 4.3, 2.6, 7.8, 9.2, 1.4]
+julia> Pingouin.anderson(x, Normal(1,5))
 (false, 0.04755873570126501)
 ```
-"""
-function anderson(x::Array{<:Number};
-                  dist::Union{String, Distribution}=Normal(),
-                  α::Float64=0.05)::Tuple{Bool, Float64}
-    # todo: implement support for multiple samples
-    if isa(dist, String)
-        if dist == "norm"
-            dist = Normal()
-        elseif dist == "expon"
-            dist = Exponential()
-        elseif dist == "logistic"
-            dist = Logistic()
-        elseif dist == "gumbel"
-            dist = Gumbel()
-        end
-    end
 
+3. Test that 2 arrays come from a custom distribution
+
+```julia-repl
+julia> using Distributions
+julia> x = [[2.3, 5.1, 4.3, 2.6, 7.8], [1, 2.0, 3.5, 5.1]]
+julia> Pingouin.anderson(x, Normal(1,5))
+((true, true), (0.09387808627138938, 0.3413749361130328))
+```
+"""
+function anderson(x::Array{<:Number},
+                  dist::Distribution=Normal(),
+                  α::Float64=0.05)::Tuple{Bool, Float64}
     andersontest = OneSampleADTest(x, dist)
     P = pvalue(andersontest)
     H = P < α
 
     return !H, P
+end
+function anderson(x::Array{<:Number},
+                  dist::String="norm",
+                  α::Float64=0.05)::Tuple{Bool, Float64}
+    dist = _get_dist_from_string(dist)
+    anderson(x, dist, α)
+end
+# support for multiple samples
+function anderson(x::Array{Array{T,1},1} where T<:Number,
+                  dist::Distribution=Normal(),
+                  α::Float64=0.05)::Tuple{Tuple, Tuple}
+    results = [OneSampleADTest(sample, dist) for sample in x]
+
+    P = Tuple(pvalue(andersontest) for andersontest in results)
+    H = Tuple(P .< α)
+
+    return .!H, P
+end
+function anderson(x::Array{Array{T,1},1} where T<:Number,
+                  dist::String="norm",
+                  α::Float64=0.05)::Tuple{Tuple, Tuple}
+    dist = _get_dist_from_string(dist)
+    anderson(x, dist, α)
 end
 
 
