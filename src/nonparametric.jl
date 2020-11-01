@@ -325,3 +325,69 @@ function wilcoxon(x::Array{<:Number}, y::Array{<:Number})::DataFrame
 
     return DataFrame(W_val=wval, p_val=pval, RBC=rbc, CLES=cles)
 end
+
+
+"""
+    kruskal(data[, dv, between, detailed])
+
+Kruskal-Wallis H-test for independent samples.
+
+Arguments
+----------
+- `data::DataFrame`: DataFrame,
+- `dv::String`: Name of column containing the dependent variable,
+- `between::String`: Name of column containing the between factor.
+
+Returns
+-------
+- `stats::DataFrame`
+    * `'H'`: The Kruskal-Wallis H statistic, corrected for ties,
+    * `'p-unc'`: Uncorrected p-value,
+    * `'dof'`: degrees of freedom.
+
+Notes
+-----
+The Kruskal-Wallis H-test tests the null hypothesis that the population
+median of all of the groups are equal. It is a non-parametric version of
+ANOVA. The test works on 2 or more independent samples, which may have
+different sizes.
+
+Due to the assumption that H has a chi square distribution, the number of
+samples in each group must not be too small. A typical rule is that each
+sample must have at least 5 measurements.
+
+NaN values are automatically removed.
+
+Examples
+--------
+Compute the Kruskal-Wallis H-test for independent samples.
+
+```julia-repl
+julia> data = Pingouin.read_dataset("anova")
+julia> Pingouin.kruskal(data, dv="Pain threshold", between="Hair color")
+1×4 DataFrame
+│ Row │ Source     │ ddof  │ H       │ p_unc     │
+│     │ String     │ Int64 │ Float64 │ Float64   │
+├─────┼────────────┼───────┼─────────┼───────────┤
+│ 1   │ Hair color │ 3     │ 10.5886 │ 0.0141716 │
+```
+"""
+function kruskal(data;
+                 dv::Union{String,Symbol},
+                 between::Union{String,Symbol})::DataFrame
+    # todo: remove nans
+
+    group_names = unique(data[between])
+    groups = [data[data[between] .== v, dv] for v in group_names]
+
+    results = KruskalWallisTest(groups...)
+
+    ddof = results.df
+    H = results.H
+    p_unc = pvalue(results)
+
+    return DataFrame(Source=between,
+                     ddof=ddof,
+                     H=H,
+                     p_unc=p_unc)
+end
