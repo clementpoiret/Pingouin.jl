@@ -205,7 +205,7 @@ end
 
 function _get_normtest_from_string(method::String)::Function
     if method == "shapiro"
-        return _shapiro
+        throw(DomainError(method, "Shapiro not yet merged in HypothesisTests.jl. I hope it'll be merged soon :)"))
     elseif method == "jarque_bera"
         return _jarque_bera
     else
