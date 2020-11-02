@@ -79,6 +79,8 @@ function _get_dist_from_string(dist::String)::Distribution
         return Logistic()
     elseif dist == "gumbel"
         return Gumbel()
+    else
+        throw(DomainError(method, "Unknown distribution for andersontest."))
     end
 end
 
@@ -157,6 +159,58 @@ function anderson(x::Array{Array{T,1},1} where T<:Number,
                   α::Float64=0.05)::Tuple{Tuple, Tuple}
     dist = _get_dist_from_string(dist)
     anderson(x, dist, α)
+end
+
+
+# normality
+function _shapiro(x::Array{<:Number}, α::Float64=0.05)::DataFrame
+    """
+    Compute the Shapiro-Wilk statistic to test the null hypothesis that a real-valued vector \$y\$ is normally distributed.
+    """
+    x = x[@. !isnan.(x)]
+    
+    n = length(x)
+
+    if n <= 3
+        throw(DomainError(x, "Data must be at least of length 4."))
+    end
+
+    if n >= 5000
+    print("[WARN] x contains more than 5000 samples. The test might be incorrect.")
+    end
+
+    if minimum(x) == maximum(x)
+        throw(DomainError(x, "All values are identical."))
+    end
+
+    H, SW, P = shapiro_wilk(x, α)
+
+    return DataFrame(W=SW, pval=P, normal=!H)
+end
+
+
+function _jarque_bera(x::Array{<:Number}, α::Float64=0.05)::DataFrame
+    """
+    Compute the Jarque-Bera statistic to test the null hypothesis that a real-valued vector \$y\$ is normally distributed.
+    """
+    test = JarqueBeraTest(x)
+
+    JB = test.JB
+    P = pvalue(test)
+    H = (α >= P)
+
+    return DataFrame(W=JB, pval=P, normal=!H)
+end
+
+
+function _get_normtest_from_string(method::String)::Function
+    if method == "shapiro"
+        return _shapiro
+    elseif method == "jarque_bera"
+        return _jarque_bera
+    else
+        throw(DomainError(method, "Unknown method for normality test."))
+    end
 end
 
 
@@ -266,7 +320,7 @@ julia> Pingouin.normality(dataset, method="jarque_bera")
 
 ```julia-repl
 julia> dataset = Pingouin.read_dataset("rm_anova2")
-julia> Pingouin.normality(dataset, dv=:Performance, group=:Time)
+julia> Pingouin.normality(dataset, :Performance, :Time)
 │ Row │ Time   │ W         │ pval      │ normal │
 │     │ String │ Float64   │ Float64   │ Bool   │
 ├─────┼────────┼───────────┼───────────┼────────┤
@@ -274,91 +328,59 @@ julia> Pingouin.normality(dataset, dv=:Performance, group=:Time)
 │ 2   │ Post   │ 1.30965   │ 0.0951576 │ 1      │
 ```
 """
-function normality(data;
-                   dv::Union{Symbol, String, Nothing}=nothing,
-                   group::Union{Symbol, String, Nothing}=nothing,
+function normality(data::DataFrame,
+                   dv::Union{String, Symbol},
+                   group::Union{String, Symbol};
                    method::String="shapiro",
                    α::Float64=0.05)::DataFrame
-    func = eval(Meta.parse(method))
-    if isa(data, Array{})
-        return func(data, α)
-    else 
-        if dv === nothing && group === nothing
-            # wide dataframe
-            numdata = data[ :, colwise(x -> (eltype(x) <: Number), data)]
+    # long dataframe
+    func = _get_normtest_from_string(method)
 
-            result = DataFrame()
-            for column in propertynames(numdata)
-                r = func(numdata[column], α)
-                insertcols!(r, 1, :dv => column)
-                append!(result, r)
-            end
+    group = Symbol(group)
+    dv = Symbol(dv)
 
-            return result
-        else
-            # long dataframe
-            group = Symbol(group)
-            dv = Symbol(dv)
-
-            @assert group in propertynames(data)
-            @assert dv in propertynames(data)
-            
-            grp = groupby(data, group, sort=false)
-            result = DataFrame()
-            for subdf in grp
-                r = func(DataFrame(subdf)[dv], α)
-                insertcols!(r, 1, group => subdf[1, group])
-
-                append!(result, r)
-            end
-            
-            return result
-            
-        end
-    end
-end
-
-
-function shapiro(x::Array{<:Number}, α::Float64=0.05)::DataFrame
-    """
-    Compute the Shapiro-Wilk statistic to test the null hypothesis that a real-valued vector \$y\$ is normally distributed.
-    """
-    x = x[@. !isnan.(x)]
+    @assert group in propertynames(data)
+    @assert dv in propertynames(data)
     
-    n = length(x)
+    grp = groupby(data, group, sort=false)
+    result = DataFrame()
+    for subdf in grp
+        r = func(DataFrame(subdf)[dv], α)
+        insertcols!(r, 1, group => subdf[1, group])
 
-    if n <= 3
-        throw(DomainError(x, "Data must be at least of length 4."))
+        append!(result, r)
+    end
+    
+    return result
+end
+function normality(data::DataFrame;
+                   method::String="shapiro",
+                   α::Float64=0.05)::DataFrame
+    # wide dataframe
+    func = _get_normtest_from_string(method)
+
+    numdata = data[:, colwise(x -> (eltype(x) <: Number), data)]
+
+    result = DataFrame()
+    for column in propertynames(numdata)
+        r = func(numdata[column], α)
+        insertcols!(r, 1, :dv => column)
+        append!(result, r)
     end
 
-    if n >= 5000
-    print("[WARN] x contains more than 5000 samples. The test might be incorrect.")
-    end
+    return result
+end
+function normality(data::Array{<:Number};
+                   method::String="shapiro",
+                   α::Float64=0.05)::DataFrame
+    # simple array
+    func = _get_normtest_from_string(method)
 
-    if minimum(x) == maximum(x)
-        throw(DomainError(x, "All values are identical."))
-    end
-
-    H, SW, P = shapiro_wilk(x, α)
-
-    return DataFrame(W=SW, pval=P, normal=!H)
+    return func(data, α)
 end
 
 
-function jarque_bera(x::Array{<:Number}, α::Float64=0.05)::DataFrame
-    """
-    Compute the Jarque-Bera statistic to test the null hypothesis that a real-valued vector \$y\$ is normally distributed.
-    """
-    test = JarqueBeraTest(x)
-
-    JB = test.JB
-    P = pvalue(test)
-    H = (α >= P)
-
-    return DataFrame(W=JB, pval=P, normal=!H)
-end
-
-
+# homoscedasticity
 """
     homoscedasticity(data[, dv, group, method, α])
 
