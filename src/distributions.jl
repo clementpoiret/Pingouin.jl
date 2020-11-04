@@ -167,8 +167,11 @@ function _shapiro(x::Array{<:Number}, α::Float64=0.05)::DataFrame
     """
     Compute the Shapiro-Wilk statistic to test the null hypothesis that a real-valued vector \$y\$ is normally distributed.
     """
+    # todo: replace w/ HypothesisTests.jl when it'll be merged, and remove StatsFuns.jl
     x = x[@. !isnan.(x)]
-    
+    x = convert(Array{Float64}, x)
+    sort!(x)
+
     n = length(x)
 
     if n <= 3
@@ -176,16 +179,20 @@ function _shapiro(x::Array{<:Number}, α::Float64=0.05)::DataFrame
     end
 
     if n >= 5000
-    print("[WARN] x contains more than 5000 samples. The test might be incorrect.")
+        print("[WARN] x contains more than 5000 samples. The test might be incorrect.")
     end
 
     if minimum(x) == maximum(x)
         throw(DomainError(x, "All values are identical."))
     end
 
-    H, SW, P = shapiro_wilk(x, α)
+    SWc, W, N1 = ShapiroWilkTest(x)
+    P = swpvalue(W, SWc, N1)
+    H = (α >= P)
 
-    return DataFrame(W=SW, pval=P, normal=!H)
+    # H, SW, P = shapiro_wilk(x, α)
+
+    return DataFrame(W=W, pval=P, normal=!H)
 end
 
 
@@ -205,7 +212,7 @@ end
 
 function _get_normtest_from_string(method::String)::Function
     if method == "shapiro"
-        throw(DomainError(method, "Shapiro not yet merged in HypothesisTests.jl. I hope it'll be merged soon :)"))
+        return _shapiro
     elseif method == "jarque_bera"
         return _jarque_bera
     else
@@ -293,10 +300,10 @@ Examples
 julia> dataset = Pingouin.read_dataset("anova")
 julia> Pingouin.normality(dataset["Pain threshold"])
 1×3 DataFrame
-│ Row │ W         │ pval     │ normal │
-│     │ Float64   │ Float64  │ Bool   │
-├─────┼───────────┼──────────┼────────┤
-│ 1   │ -0.842541 │ 0.800257 │ 1      │
+│ Row │ W        │ pval     │ normal │
+│     │ Float64  │ Float64  │ Bool   │
+├─────┼──────────┼──────────┼────────┤
+│ 1   │ 0.971204 │ 0.800257 │ 1      │
 ```
 
 2. Wide-format dataframe using Jarque-Bera test
@@ -304,6 +311,7 @@ julia> Pingouin.normality(dataset["Pain threshold"])
 ```julia-repl
 julia> dataset = Pingouin.read_dataset("mediation")
 julia> Pingouin.normality(dataset, method="jarque_bera")
+7×4 DataFrame
 │ Row │ dv     │ W        │ pval        │ normal │
 │     │ Symbol │ Float64  │ Float64     │ Bool   │
 ├─────┼────────┼──────────┼─────────────┼────────┤
@@ -321,11 +329,12 @@ julia> Pingouin.normality(dataset, method="jarque_bera")
 ```julia-repl
 julia> dataset = Pingouin.read_dataset("rm_anova2")
 julia> Pingouin.normality(dataset, :Performance, :Time)
-│ Row │ Time   │ W         │ pval      │ normal │
-│     │ String │ Float64   │ Float64   │ Bool   │
-├─────┼────────┼───────────┼───────────┼────────┤
-│ 1   │ Pre    │ 0.0532374 │ 0.478771  │ 1      │
-│ 2   │ Post   │ 1.30965   │ 0.0951576 │ 1      │
+2×4 DataFrame
+│ Row │ Time   │ W        │ pval      │ normal │
+│     │ String │ Float64  │ Float64   │ Bool   │
+├─────┼────────┼──────────┼───────────┼────────┤
+│ 1   │ Pre    │ 0.967718 │ 0.478771  │ 1      │
+│ 2   │ Post   │ 0.940728 │ 0.0951576 │ 1      │
 ```
 """
 function normality(data::DataFrame,

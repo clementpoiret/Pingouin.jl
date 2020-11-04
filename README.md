@@ -35,3 +35,6 @@ Pingouin is designed for users who want simple yet exhaustive stats functions:
 - [ ] Power analysis,
 - [ ] Reliability and consistency,
 - [ ] Others.
+
+____
+_shapiro.jl is provided under MIT license.
