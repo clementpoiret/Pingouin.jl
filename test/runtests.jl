@@ -4,13 +4,13 @@ using Test
 
 @testset "Normality" begin
     x = [2.3, 5.1, 4.3, 2.6, 7.8, 9.2, 1.4]
-    res = Pingouin.anderson(x, dist="norm")
+    res = Pingouin.anderson(x, "norm")
     @test res == (false, 8.571428568870942e-5)
 
     x = Pingouin.read_dataset("anova")
     res = Pingouin.normality(x[!, "Pain threshold"])
-    @test res[1, :W] ≈ -0.8425410994541409
-    @test res[1, :pval] ≈ 0.8002574277219333
+    @test res[1, :W] ≈ 0.9712035839865627
+    @test res[1, :pval] ≈ 0.8002574277219071
     @test res[1, :normal] == true
 end
 

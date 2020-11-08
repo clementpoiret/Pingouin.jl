@@ -390,6 +390,16 @@ end
 
 
 # homoscedasticity
+function _get_homoscedasticitytest_from_string(method::String)::Function
+    if method == "levene"
+        return levene
+    elseif method == "bartlett"
+        return bartlett
+    else
+        throw(DomainError(method, "Unknown method for homoscedasticity test."))
+    end
+end
+
 """
     homoscedasticity(data[, dv, group, method, α])
 
@@ -464,7 +474,7 @@ Examples
 1. Levene test on a wide-format dataframe
 
 ```julia-repl
-julia> data = Pingouin.read_dataset("mediation")
+julia> data = Pingouin.read_dataset("mediation");
 julia> Pingouin.homoscedasticity(data[["X", "Y", "M"]])
 1×3 DataFrame
 │ Row │ W       │ pval     │ equal_var │
@@ -476,7 +486,7 @@ julia> Pingouin.homoscedasticity(data[["X", "Y", "M"]])
 2. Bartlett test using an array of arrays
 
 ```julia-repl
-julia> data = [[4, 8, 9, 20, 14], [5, 8, 15, 45, 12]]
+julia> data = [[4, 8, 9, 20, 14], [5, 8, 15, 45, 12]];
 julia> Pingouin.homoscedasticity(data, method="bartlett", α=.05)
 1×3 DataFrame
 │ Row │ T       │ pval     │ equal_var │
@@ -488,8 +498,8 @@ julia> Pingouin.homoscedasticity(data, method="bartlett", α=.05)
 3. Long-format dataframe
 
 ```julia-repl
-julia> data = Pingouin.read_dataset("rm_anova2")
-julia> Pingouin.homoscedasticity(data, dv="Performance", group="Time")
+julia> data = Pingouin.read_dataset("rm_anova2");
+julia> Pingouin.homoscedasticity(data, "Performance", "Time")
 1×3 DataFrame
 │ Row │ W       │ pval      │ equal_var │
 │     │ Float64 │ Float64   │ Bool      │
@@ -497,68 +507,75 @@ julia> Pingouin.homoscedasticity(data, dv="Performance", group="Time")
 │ 1   │ 3.1922  │ 0.0792169 │ 1         │
 ```
 """
-function homoscedasticity(data;
-                          dv::Union{Symbol, String, Nothing}=nothing,
-                          group::Union{Symbol, String, Nothing}=nothing,
+function homoscedasticity(data::Array{Array{T,1},1} where T<:Number;
                           method::String="levene",
                           α::Float64=0.05)::DataFrame
-    @assert method in ["levene", "bartlett"]
-    func = eval(Meta.parse(method))
+    func = _get_homoscedasticitytest_from_string(method)
 
-    if isa(data, Array{})
-        H, W, P = func(data, α=α)
-        if method == "levene"
-            return DataFrame(W=W, pval=P, equal_var=!H)
-        elseif method == "bartlett"
-            return DataFrame(T=W, pval=P, equal_var=!H)
-        end
-    else
-        if dv === nothing && group === nothing
-            # Wide format
-            numdata = data[ :, colwise(x -> (eltype(x) <: Number), data)]
+    H, W, P = func(data, α=α)
+    if method == "levene"
+        return DataFrame(W=W, pval=P, equal_var=!H)
+    elseif method == "bartlett"
+        return DataFrame(T=W, pval=P, equal_var=!H)
+    end
+end
+function homoscedasticity(data::DataFrame;
+                          method::String="levene",
+                          α::Float64=0.05)::DataFrame
+    func = _get_homoscedasticitytest_from_string(method)
+    
+    # Wide format
+    numdata = data[ :, colwise(x -> (eltype(x) <: Number), data)]
 
-            k = length(names(data))
-            if k < 2
-                throw(DomainError(data, "There should be at least 2 lists"))
-            end
+    k = length(names(data))
+    if k < 2
+        throw(DomainError(data, "There should be at least 2 lists"))
+    end
 
-            samples = []
-            for (i, feature) in enumerate(propertynames(numdata))
-                insert!(samples, i, data[feature])
-            end
+    samples = []
+    for (i, feature) in enumerate(propertynames(numdata))
+        insert!(samples, i, data[feature])
+    end
 
-            H, W, P = func(samples, α=α)
-            if method == "levene"
-                return DataFrame(W=W, pval=P, equal_var=!H)
-            elseif method == "bartlett"
-                return DataFrame(T=W, pval=P, equal_var=!H)
-            end
-        else
-            # long format
-            group = Symbol(group)
-            dv = Symbol(dv)
+    H, W, P = func(samples, α=α)
+    if method == "levene"
+        return DataFrame(W=W, pval=P, equal_var=!H)
+    elseif method == "bartlett"
+        return DataFrame(T=W, pval=P, equal_var=!H)
+    end
+end
+function homoscedasticity(data,
+                          dv::Union{Symbol, String},
+                          group::Union{Symbol, String};
+                          method::String="levene",
+                          α::Float64=0.05)::DataFrame
+    
+    func = _get_homoscedasticitytest_from_string(method)
 
-            @assert group in propertynames(data)
-            @assert dv in propertynames(data)
+    # long format
+    group = Symbol(group)
+    dv = Symbol(dv)
 
-            grp = groupby(data, group, sort=false)
-            
-            samples = []
-            for (i, subdf) in enumerate(grp)
-                insert!(samples, i, DataFrame(subdf)[dv])
-            end
+    @assert group in propertynames(data)
+    @assert dv in propertynames(data)
 
-            H, W, P = func(samples, α=α)
-            if method == "levene"
-                return DataFrame(W=W, pval=P, equal_var=!H)
-            elseif method == "bartlett"
-                return DataFrame(T=W, pval=P, equal_var=!H)
-            end
-        end
+    grp = groupby(data, group, sort=false)
+    
+    samples = []
+    for (i, subdf) in enumerate(grp)
+        insert!(samples, i, DataFrame(subdf)[dv])
+    end
+
+    H, W, P = func(samples, α=α)
+    if method == "levene"
+        return DataFrame(W=W, pval=P, equal_var=!H)
+    elseif method == "bartlett"
+        return DataFrame(T=W, pval=P, equal_var=!H)
     end
 end
 
 
+# sphericity
 """
     sphericity(data[, dv, within, subject, method, α])
 
