@@ -324,10 +324,10 @@ function convert_effsize(ef::Float64,
         return ef
     end
 
-# Convert r to Cohen d (Rosenthal 1994)
+    # Convert r to Cohen d (Rosenthal 1994)
     d = input_type == "r" ? (2 * ef) / sqrt(1 - ef^2) : ef
 
-# Then convert to the desired output type
+    # Then convert to the desired output type
     if output_type == "cohen"
         return d
     elseif output_type == "hedges"

@@ -391,3 +391,86 @@ function kruskal(data;
                      H=H,
                      p_unc=p_unc)
 end
+
+
+"""
+    cochran(data[, dv, within, subject])
+
+Cochran Q test. A special case of the Friedman test when the dependent
+variable is binary.
+
+Arguments
+----------
+- `data::DataFrame`
+- `dv::Union{Nothing,String,Symbol}`: Name of column containing the binary dependent variable.
+- `within::Union{Nothing,String,Symbol}`: Name of column containing the within-subject factor.
+- `subject::Union{Nothing,String,Symbol}`: Name of column containing the subject identifier.
+
+Returns
+-------
+- `stats::DataFrame`
+    * `'Q'`: The Cochran Q statistic,
+    * `'p-unc'`: Uncorrected p-value,
+    * `'ddof'`: degrees of freedom.
+
+Notes
+-----
+The Cochran Q test [1] is a non-parametric test for ANOVA with repeated
+measures where the dependent variable is binary.
+
+Data are expected to be in long-format. NaN are automatically removed
+from the data.
+
+The Q statistics is defined as:
+
+\$Q = \\frac{(r-1)(r\\sum_j^rx_j^2-N^2)}{rN-\\sum_i^nx_i^2}\$
+
+where ``N`` is the total sum of all observations, ``j=1,...,r``
+where ``r`` is the number of repeated measures, ``i=1,...,n`` where
+``n`` is the number of observations per condition.
+
+The p-value is then approximated using a chi-square distribution with
+``r-1`` degrees of freedom:
+
+\$Q \\sim \\chi^2(r-1)\$
+
+References
+----------
+[1] Cochran, W.G., 1950. The comparison of percentages in matched
+samples. Biometrika 37, 256–266.
+https://doi.org/10.1093/biomet/37.3-4.256
+
+Examples
+--------
+Compute the Cochran Q test for repeated measurements.
+
+```julia-repl
+julia> data = Pingouin.read_dataset("cochran");
+julia> cochran(data=data, dv="Energetic", within="Time", subject="Subject")
+1×4 DataFrame
+│ Row │ Source │ ddof  │ Q       │ p_unc     │
+│     │ String │ Int64 │ Float64 │ Float64   │
+├─────┼────────┼───────┼─────────┼───────────┤
+│ 1   │ Time   │ 2     │ 6.70588 │ 0.0349813 │
+```
+"""
+function cochran(;
+                 data::DataFrame,
+                 dv::Union{String,Symbol},
+                 within::Union{String,Symbol},
+                 subject::Union{String,Symbol})::DataFrame
+    # todo: remove na
+    grp = combine(groupby(data, within), dv=>sum=>dv)[dv]
+    grp_s = combine(groupby(data, subject), dv=>sum=>dv)[dv]
+    k = length(Set(data[:, within]))
+    ddof = k - 1
+
+    # Q statistic and p-value
+    q = (ddof * (k * sum(grp.^2) - sum(grp).^2)) / (k * sum(grp) - sum(grp_s.^2))
+    p_unc = ccdf(Chisq(ddof), q)
+
+    return DataFrame(Source = within,
+                     ddof = ddof,
+                     Q = q,
+                     p_unc = p_unc)
+end
