@@ -446,7 +446,7 @@ Compute the Cochran Q test for repeated measurements.
 
 ```julia-repl
 julia> data = Pingouin.read_dataset("cochran");
-julia> cochran(data=data, dv="Energetic", within="Time", subject="Subject")
+julia> cochran(data, dv="Energetic", within="Time", subject="Subject")
 1×4 DataFrame
 │ Row │ Source │ ddof  │ Q       │ p_unc     │
 │     │ String │ Int64 │ Float64 │ Float64   │
@@ -454,8 +454,7 @@ julia> cochran(data=data, dv="Energetic", within="Time", subject="Subject")
 │ 1   │ Time   │ 2     │ 6.70588 │ 0.0349813 │
 ```
 """
-function cochran(;
-                 data::DataFrame,
+function cochran(data::DataFrame;
                  dv::Union{String,Symbol},
                  within::Union{String,Symbol},
                  subject::Union{String,Symbol})::DataFrame
