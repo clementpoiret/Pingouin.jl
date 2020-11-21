@@ -473,3 +473,160 @@ function cochran(data::DataFrame;
                      Q = q,
                      p_unc = p_unc)
 end
+
+
+"""
+    harrelldavis(x[, q, dim])
+
+Harrell-Davis robust estimate of the ``q^{th}`` quantile(s) of the
+data.
+
+Arguments
+----------
+- `x::Array{<:Number}`: Data, must be a one or two-dimensional vector.
+- `q::Union{Float64,Array{Float64}}`: Quantile or sequence of quantiles to compute, must be between 0 and 1. Default is ``0.5``.
+- `dim::Int64`: Axis along which the MAD is computed. Default is the first axis. Can be either 1 or 2.
+
+Returns
+-------
+- `y::Union{Float64,Array{Float64}}`: The estimated quantile(s). If `quantile` is a single quantile, will return a float, otherwise will compute each quantile separately and returns an array of floats.
+
+Notes
+-----
+The Harrell-Davis method [1] estimates the ``q^{th}`` quantile by a
+linear combination of  the  order statistics. Results have been tested
+against a Matlab implementation [2]. Note that this method is also
+used to measure the confidence intervals of the difference between
+quantiles of two groups, as implemented in the shift function [3].
+
+See Also
+--------
+[`plot_shift`](@ref)
+
+References
+----------
+[1] Frank E. Harrell, C. E. Davis, A new distribution-free quantile
+estimator, Biometrika, Volume 69, Issue 3, December 1982, Pages
+635–640, https://doi.org/10.1093/biomet/69.3.635
+
+[2] https://github.com/GRousselet/matlab_stats/blob/master/hd.m
+
+[3] Rousselet, G. A., Pernet, C. R. and Wilcox, R. R. (2017). Beyond
+differences in means: robust graphical methods to compare two groups
+in neuroscience. Eur J Neurosci, 46: 1738-1748.
+https://doi.org/doi:10.1111/ejn.13610
+
+Examples
+--------
+Estimate the 0.5 quantile (i.e median) of 100 observation picked from a
+normal distribution with zero mean and unit variance.
+
+```julia-repl
+julia> using Distributions, Random
+julia> d = Normal(0, 1)
+julia> x = rand(d, 100);
+>>> Pingouin.harrelldavis(x, 0.5)
+-0.3197175569523778
+```
+
+Several quantiles at once
+
+```julia-repl
+julia> Pingouin.harrelldavis(x, [0.25, 0.5, 0.75])
+3-element Array{Float64,1}:
+ -0.8584761447019648
+ -0.3197175569523778
+  0.30049291160713604
+```
+
+On the last axis of a 2D vector (default)
+
+
+```julia-repl
+julia> using Distributions, Random
+julia> d = Normal(0, 1)
+julia> x = rand(d, (100, 100));
+julia> Pingouin.harrelldavis(x, 0.5)
+100×1 Array{Float64,2}:
+  0.08776830864191214
+  0.03470963005927001
+ -0.0805646920967012
+  0.3314919956251108
+  0.3111971350475172
+  ⋮
+  0.10769293112437549
+ -0.10622118136247076
+ -0.13230506142402296
+ -0.09693123033727057
+ -0.2135938540892071
+```
+
+On the first axis
+
+```julia-repl
+julia> Pingouin.harrelldavis(x, 0.5, 1)
+1×100 Array{Float64,2}:
+ 0.0112259  -0.0409635  -0.0918462 ...
+```
+
+On the first axis with multiple quantiles
+
+```julia-repl
+julia> Pingouin.harrelldavis(x, [0.5, 0.75], 1)
+1×100 Array{Float64,2}:
+ 0.0112259  -0.0409635  -0.0918462 ...
+```
+"""
+function harrelldavis(x::Array{T,1} where T<:Number,
+                     q::Float64=0.5)
+    sort!(x)
+
+    n = length(x)
+    vec = convert(Array, range(1, n))
+
+    # Harrell-Davis estimate of the qth quantile
+    m1 = (n + 1) * q
+    m2 = (n + 1) * (1 - q)
+    w = cdf(Beta(m1, m2), vec ./ n) - cdf(Beta(m1, m2), (vec .- 1) ./ n)
+
+    return sum(w .* x)
+end
+function harrelldavis(x::Array{T,1} where T<:Number,
+                      q::Array{Float64}=[0.5, 0.75])
+    y = Array{Float64}(undef, length(q))
+    for (i, _q) in enumerate(q)
+        y[i] = harrelldavis(x, _q)
+    end
+    return y
+end
+function harrelldavis(x::Array{T,2} where T<:Number,
+                      q::Float64=0.5,
+                      dim::Int64=2)
+    @assert dim in [1, 2]
+
+    x = sortslices(x, dims=dim)
+
+    n = size(x)[dim]
+    vec = convert(Array, range(1, n))
+
+    # Harrell-Davis estimate of the qth quantile
+    m1 = (n + 1) * q
+    m2 = (n + 1) * (1 - q)
+    w = cdf(Beta(m1, m2), vec ./ n) - cdf(Beta(m1, m2), (vec .- 1) ./ n)
+
+    # todo: triple check transpose
+    if dim == 1
+        return sum(w .* x, dims=dim)
+    elseif dim == 2
+        sum(transpose(w) .* x, dims=dim)
+    end
+end
+function harrelldavis(x::Array{T,2} where T<:Number,
+                     q::Array{Float64}=[0.5, 0.75],
+                     dim::Int64=1)
+    y = Array{Array}(undef,length(q))
+    for (i, _q) in enumerate(q)
+        y[i] = harrelldavis(x, _q, dim)
+    end
+    return y
+end
