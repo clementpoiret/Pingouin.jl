@@ -478,8 +478,8 @@ end
 """
     harrelldavis(x[, q, dim])
 
-Harrell-Davis robust estimate of the ``q^{th}`` quantile(s) of the
-data.
+*EXPERIMENTAL* Harrell-Davis robust estimate of the ``q^{th}`` quantile(s) of the
+data. *TESTS NEEDED*
 
 Arguments
 ----------
