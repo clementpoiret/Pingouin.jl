@@ -34,15 +34,34 @@ end
 end
 
 
-@testset "Effsize" begin   
+@testset "Effsize" begin
     x = [1, 2, 3, 4]
     y = [3, 4, 5, 6, 7]
     ef = Pingouin.compute_effsize(x, y, paired=false, eftype="cohen")
     @test ef ≈ -1.707825127659933
     eta = Pingouin.convert_effsize(ef, "cohen", "eta-square")
     @test eta ≈ 0.42168674698795183
-
 end
+
+
+@testset "Harrell-Davis" begin
+    x = [1. 2. 5.; 2.1 5. 2.2]
+
+    res = round.(Pingouin.harrelldavis(x, 0.5, 1), digits=2)
+    @test res == [1.55 3.5 3.6]
+
+    x = [1. 2. 5.; 2.1 5. 2.2]
+    res = Pingouin.harrelldavis(x, 0.5, 2)
+    @test res[1] ≈ 2.51851852
+    @test res[2] ≈ 2.9
+
+    x = [1. 2. 5.; 2.1 5. 2.2]
+    res = Pingouin.harrelldavis(x, [0.25, 0.5, 0.75], 1)
+    @test res[1] ≈ [1.16536136 2.45098551 2.62091981]
+    @test res[2] ≈ [1.55 3.5 3.6]
+    @test res[3] ≈ [1.93463864 4.54901449 4.57908019]    
+end
+
 
 # todo: to test when SciPy will be removed.
 # @testset "Bayes_Factor_Binomial_Test" begin

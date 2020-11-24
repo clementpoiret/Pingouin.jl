@@ -582,7 +582,7 @@ function harrelldavis(x::Array{T,1} where T<:Number,
     sort!(x)
 
     n = length(x)
-    vec = convert(Array, range(1, n))
+    vec = convert(Array, range(1, n, step=1))
 
     # Harrell-Davis estimate of the qth quantile
     m1 = (n + 1) * q
@@ -604,21 +604,21 @@ function harrelldavis(x::Array{T,2} where T<:Number,
                       dim::Int64=2)
     @assert dim in [1, 2]
 
-    x = sortslices(x, dims=dim)
+    sort!(x, dims=dim)
 
     n = size(x)[dim]
-    vec = convert(Array, range(1, n))
+    vec = convert(Array, range(1, n, step=1))
 
     # Harrell-Davis estimate of the qth quantile
     m1 = (n + 1) * q
     m2 = (n + 1) * (1 - q)
-    w = cdf(Beta(m1, m2), vec ./ n) - cdf(Beta(m1, m2), (vec .- 1) ./ n)
+    w = cdf.(Beta(m1, m2), vec ./ n) - cdf.(Beta(m1, m2), (vec .- 1) ./ n)
 
     # todo: triple check transpose
     if dim == 1
         return sum(w .* x, dims=dim)
     elseif dim == 2
-        sum(transpose(w) .* x, dims=dim)
+        return sum(transpose(w) .* x, dims=dim)
     end
 end
 function harrelldavis(x::Array{T,2} where T<:Number,
