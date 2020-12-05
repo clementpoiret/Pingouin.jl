@@ -1,7 +1,7 @@
-using SciPy
-# todo: replace SciPy by native julia functions
-using SpecialFunctions
+using Distributions
 using HypergeometricFunctions
+using QuadGK
+using SpecialFunctions
 
 """
     bayesfactor_binom(k, n, p)
@@ -49,7 +49,7 @@ julia> bf = Pingouin.bayesfactor_binom(115, 200, 0.5)
 julia> # Note that Pingouin returns the BF-alt by default.
 julia> # BF-null is simply 1 / BF-alt
 julia> print("BF-null: ", 1 / bf, "; BF-alt: ", bf)
-BF-null: 1.197134330237549; BF-alt: 0.8353281455069195
+BF-null: 1.197134330237552; BF-alt: 0.8353281455069175
 ```
 
 Since the Bayes Factor of the null hypothesis ("the coin is fair") is
@@ -89,10 +89,11 @@ function bayesfactor_binom(k::Int64,
     @assert(k < n, "k (successes) cannot be higher than n (trials).")
 
     function f(g, k, n)
-        binom_pmf = SciPy.stats.binom.pmf(k, n, g)
+        binom_pmf = pdf(Binomial(n, g), k)
         return binom_pmf
     end
-    binom_bf = SciPy.integrate.quad(f, 0, 1, args=(k, n))[1] / SciPy.stats.binom.pmf(k, n, p)
+    
+    binom_bf = quadgk(x -> f(x, k, n), 0, 1)[1] / pdf(Binomial(n, p), k)
     return binom_bf
 end
 
@@ -199,7 +200,7 @@ We can also only pass `tail='one-sided'` and Pingouin will automatically
 infer the directionality of the test based on the ``r`` value.
 
 ```julia-repl
-julia> print("BF: ", round.(bayesfactor_pearson(r, n, tail="one-sided"), digits=3))
+julia> print("BF: ", round.(Pingouin.bayesfactor_pearson(r, n, tail="one-sided"), digits=3))
 BF: 21.185
 ```
 """
@@ -231,8 +232,8 @@ function bayesfactor_pearson(r::Float64,
                        * log(1 + (1 - r^2) * g) + (-3 / 2)
         * log(g) + - n / (2 * g))
         end
-
-        integr = SciPy.integrate.quad(f, 0, Inf, args=(r, n))[1]
+        
+        integr = quadgk(x -> f(x, r, n), 0, Inf)[1]
         bf10 = sqrt((n / 2)) / gamma(1 / 2) * integr
     else
         # Ly et al, 2016. Analytical solution.
@@ -331,7 +332,7 @@ Examples
 
 ```julia-repl
 julia> bf = Pingouin.bayesfactor_ttest(3.5, 20, 20)
-julia> print("Bayes Factor: ", round.(bf, digits=3), "(two-sample independent)")
+julia> print("Bayes Factor: ", round.(bf, digits=3), " (two-sample independent)")
 Bayes Factor: 26.743 (two-sample independent)
 ```
 
@@ -339,7 +340,7 @@ Bayes Factor: 26.743 (two-sample independent)
 
 ```julia-repl
 julia> bf = Pingouin.bayesfactor_ttest(3.5, 20, 20, paired=true)
-julia> print("Bayes Factor: ", round.(bf, digits=3), "(two-sample paired)")
+julia> print("Bayes Factor: ", round.(bf, digits=3), " (two-sample paired)")
 Bayes Factor: 17.185 (two-sample paired)
 ```
 
@@ -347,7 +348,7 @@ Bayes Factor: 17.185 (two-sample paired)
 
 ```julia-repl
 julia> bf = Pingouin.bayesfactor_ttest(3.5, 20, tail="one-sided")
-julia> print("Bayes Factor: ", round.(bf, digits=3), "(one-sample)")
+julia> print("Bayes Factor: ", round.(bf, digits=3), " (one-sample)")
 Bayes Factor: 34.369 (one-sample)
 ```
 
@@ -397,7 +398,7 @@ function bayesfactor_ttest(t::Float64,
     end
 
     # JZS Bayes factor calculation: eq. 1 in Rouder et al. (2009)
-    integr = SciPy.integrate.quad(f, 0, Inf, args=(t, n, r, df))[1]
+    integr = quadgk(x -> f(x, t, n, r, df), 0, Inf)[1]
     bf10 = 1 / ((1 + t^2 / df)^(-(df + 1) / 2) / integr)
 
     # Tail
