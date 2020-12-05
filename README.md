@@ -2,6 +2,9 @@
 
 [Documentation](https://clementpoiret.github.io/Pingouin.jl/index.html)
 
+Pingouin is designed for users who want simple yet exhaustive stats functions:
+![sample code](code.png)
+
 *A reimplementation of Raphaelvallat's Pingouin in Julia, from scratch.
 Currently at a really early stage, usable, but please double check your results.*
 
@@ -17,9 +20,6 @@ Pingouin.jl is an open-source statistical package written in pure Julia,
 and based mostly on DataFrames.jl, and HypothesisTests.jl. Some of its main
 features are listed below. For a full list of future functions, please refer
 to the original Python API documentation.
-
-Pingouin is designed for users who want simple yet exhaustive stats functions:
-![sample code](code.png)
 
 ## Installation
 
