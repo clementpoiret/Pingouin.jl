@@ -1,5 +1,7 @@
 # Pingouin.jl
 
+[Documentation](https://clementpoiret.github.io/Pingouin.jl/index.html)
+
 *A reimplementation of Raphaelvallat's Pingouin in Julia, from scratch.
 Currently at a really early stage, usable, but please double check your results.*
 
@@ -18,6 +20,21 @@ to the original Python API documentation.
 
 Pingouin is designed for users who want simple yet exhaustive stats functions:
 ![sample code](code.png)
+
+## Installation
+
+You can install the latest table Pingouin through the official repo:
+
+```julia
+julia> using Pkg
+julia> Pkg.add("Pingouin")
+```
+
+Or the latest version (maybe unstable) from github:
+
+```julia
+pkg> add https://github.com/clementpoiret/Pingouin.jl.git
+```
 
 ## Current progress
 
