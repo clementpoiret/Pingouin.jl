@@ -22,6 +22,7 @@ Pingouin is designed for users who want simple yet exhaustive stats functions:
 ![sample code](code.png)
 
 ## Installation
+
 You can install the latest table Pingouin through the official repo:
 
 ```julia
