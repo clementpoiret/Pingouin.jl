@@ -696,6 +696,7 @@ function friedman(data::DataFrame;
     end
     data = combine(groupby(data, [subject, within]), dv=>m=>dv)
 
+    # todo: remove na
     # Extract number of groups and total sample size
     grp = groupby(data, within)
     rm = unique(data[!, within])
