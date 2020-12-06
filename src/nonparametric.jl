@@ -630,3 +630,108 @@ function harrelldavis(x::Array{T,2} where T<:Number,
     end
     return y
 end
+
+
+"""
+    friedman(data, dv, within, subject)
+
+Friedman test for repeated measurements.
+
+Arguments
+----------
+- `data::DataFrame`,
+- `dv::Union{String,Symbol}`: Name of column containing the dependent variable,
+- `within::Union{String,Symbol}`: Name of column containing the within-subject factor,
+- `subject::Union{String,Symbol}`: Name of column containing the subject identifier.
+
+Returns
+-------
+- `stats::DataFrame`
+    * `"Q"`: The Friedman Q statistic, corrected for ties,
+    * `"p-unc"`: Uncorrected p-value,
+    * `"ddof"`: degrees of freedom.
+
+Notes
+-----
+The Friedman test is used for one-way repeated measures ANOVA by ranks.
+
+Data are expected to be in long-format.
+
+Note that if the dataset contains one or more other within subject
+factors, an automatic collapsing to the mean is applied on the dependent
+variable (same behavior as the ezANOVA R package). As such, results can
+differ from those of JASP. If you can, always double-check the results.
+
+Due to the assumption that the test statistic has a chi squared
+distribution, the p-value is only reliable for n > 10 and more than 6
+repeated measurements.
+
+NaN values are automatically removed.
+
+Examples
+--------
+Compute the Friedman test for repeated measurements.
+
+```julia-repl
+julia> data = Pingouin.read_dataset("rm_anova")
+julia> Pingouin.friedman(data,
+                         dv="DesireToKill",
+                         within="Disgustingness",
+                         subject="Subject")
+                         1×4 DataFrame
+1×4 DataFrame
+ Row │ Source          ddof   Q        p_unc      
+     │ String          Int64  Float64  Float64    
+─────┼────────────────────────────────────────────
+   1 │ Disgustingness      1  9.22785  0.00238362
+```
+"""
+function friedman(data::DataFrame;
+                  dv::Union{String,Symbol},
+                  within::Union{String,Symbol},
+                  subject)::DataFrame
+    # Collapse to the mean
+    function m(x)
+        return mean(skipmissing(x))
+    end
+    data = combine(groupby(data, [subject, within]), dv=>m=>dv)
+
+    # Extract number of groups and total sample size
+    grp = groupby(data, within)
+    rm = unique(data[!, within])
+    k = length(rm)
+    X = hcat([convert(Array{Float64}, g[!, dv]) for g in grp]...)
+    n = size(X)[1]
+
+    # Rank per subject
+    ranked = Array{Float64, 2}(undef, size(X))
+    for i in 1:n
+        ranked[i, :] = tiedrank(X[i, :])
+    end
+    
+    ssbn = sum(sum(ranked, dims=1).^2)
+
+    # Compute the test statistic
+    Q = (12 / (n * k * (k + 1))) * ssbn - 3 * n * (k + 1)
+
+    # Correct for ties
+    ties = 0
+    for i in 1:n
+        repnum = values(countmap(X[i, :]))
+        for t in repnum
+            ties += t * (t * t - 1)
+        end
+    end
+
+    c = 1 - ties / float(k * (k * k - 1) * n)
+    Q /= c
+
+    # Approximate the p-value
+    ddof1 = k - 1
+    p_unc = ccdf(Chisq(ddof1), Q)
+
+    return DataFrame(Source = within,
+                     ddof = ddof1,
+                     Q = Q,
+                     p_unc = p_unc)
+end
