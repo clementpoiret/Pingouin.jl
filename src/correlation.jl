@@ -191,3 +191,81 @@ function percbend(x::Array{<:Number},
 
     return r, pval
 end
+
+
+"""
+    bicor(x, y[, c])
+
+Biweight midcorrelation.
+
+Arguments
+----------
+- `x, y::Array{<:Number}`: First and second set of observations. x and y must be independent.
+- `c::Float64`: Tuning constant for the biweight estimator (default = 9.0).
+
+Returns
+-------
+- `r::Float64`: Correlation coefficient.
+- `pval::Float64`: Two-tailed p-value.
+
+Notes
+-----
+This function will return (NaN, NaN) if mad(x) == 0 or mad(y) == 0.
+
+References
+----------
+https://en.wikipedia.org/wiki/Biweight_midcorrelation
+
+https://docs.astropy.org/en/stable/api/astropy.stats.biweight.biweight_midcovariance.html
+
+Langfelder, P., & Horvath, S. (2012). Fast R Functions for Robust
+Correlations and Hierarchical Clustering. Journal of Statistical Software,
+46(11). https://www.ncbi.nlm.nih.gov/pubmed/23050260
+
+Examples
+--------
+
+```julia-repl
+julia> x = [5,7,8,4,5,3,6,9]
+julia> y = [8,7,4,5,89,4,1,1]
+julia> r, pval = Pingouin.bicor(x, y)
+julia> pval
+0.4157350278895959
+```
+"""
+function bicor(x::Array{<:Number},
+               y::Array{<:Number};
+               c::Float64=9.0)
+    # Calculate median
+    nx = size(x)[1]
+    x_median = median(x)
+    y_median = median(y)
+
+    # Raw median absolute deviation
+    x_mad = median(abs.(x .- x_median))
+    y_mad = median(abs.(y .- y_median))
+    if x_mad == 0 || y_mad == 0
+        # From Langfelder and Horvath 2012:
+        # "Strictly speaking, a call to bicor in R should return a missing
+        # value if mad(x) = 0 or mad(y) = 0." This avoids division by zero.
+        return NaN, NaN
+    end
+
+    # Calculate weights
+    u = (x .- x_median) ./ (c * x_mad)
+    v = (y .- y_median) ./ (c * y_mad)
+    w_x = (1 .- u.^2).^2 .* ((1 .- abs.(u)) .> 0)
+    w_y = (1 .- v.^2).^2 .* ((1 .- abs.(v)) .> 0)
+
+    # Normalize x and y by weights
+    x_norm = (x .- x_median) .* w_x
+    y_norm = (y .- y_median) .* w_y
+    denom = (sqrt(sum(x_norm.^2)) * sqrt(sum(y_norm.^2)))
+
+    # Calculate r, t, and two-sided p-value
+    r = sum(x_norm .* y_norm) / denom
+    tval = r * sqrt((nx - 2) / (1 - r^2))
+    pval = 2 * ccdf(TDist(nx - 2), abs(tval))
+
+    return r, pval
+end
