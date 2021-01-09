@@ -110,3 +110,84 @@ function shepherd(x::Array{<:Number},
 
     return r, outliers
 end
+
+
+"""
+    percbend(x, y[, β])
+
+Percentage bend correlation (Wilcox 1994).
+
+Arguments
+----------
+- `x, y::Array{<:Number}`: First and second set of observations. x and y must be independent.
+- `β::Float64`: Bending constant for omega (0.0 <= β <= 0.5).
+
+Returns
+-------
+- `r::Float64`: Percentage bend correlation coefficient.
+- `pval::Float64`: Two-tailed p-value.
+
+Notes
+-----
+Code inspired by Matlab code from Cyril Pernet and Guillaume Rousselet.
+
+References
+----------
+[1] Wilcox, R.R., 1994. The percentage bend correlation coefficient.
+Psychometrika 59, 601–616. https://doi.org/10.1007/BF02294395
+
+[2] Pernet CR, Wilcox R, Rousselet GA. Robust Correlation Analyses:
+False Positive and Power Validation Using a New Open Source Matlab
+Toolbox. Frontiers in Psychology. 2012;3:606.
+doi:10.3389/fpsyg.2012.00606.
+
+Examples
+--------
+
+```julia-repl
+julia> x = [5,7,8,4,5,3,6,9]
+julia> y = [8,7,4,5,89,4,1,1]
+julia> r, pval = Pingouin.percbend(x, y)
+julia> pval
+0.39938135704241806
+```
+"""
+function percbend(x::Array{<:Number},
+                  y::Array{<:Number};
+                  β::Float64=.2)::Tuple{Float64,Float64}
+    X = hcat(x, y)
+    nx = size(X)[1]
+    M = repeat(median(X, dims=1), nx)
+    W = sort(abs.(X .- M), dims=1)
+    m = Int(floor((1 - β) * nx))
+    ω = W[m, :]
+    P = (X .- M) ./ ω'
+    replace!(P, Inf => 0.0)
+    replace!(P, NaN => 0.0)
+
+    # Loop over columns
+    a = zeros((2, nx))
+    for c in [1, 2]
+        ψ = P[:, c]
+        i1 = count(ψ .< -1)
+        i2 = count(ψ .> 1)
+        s = X[:, c]
+        s[ψ .< -1] .= 0
+        s[ψ .> 1] .= 0
+        pbos = (sum(s) + ω[c] * (i2 - i1)) / (length(s) - i1 - i2)
+        a[c, :] = (X[:, c] .- pbos) ./ ω[c]
+    end
+
+    # Bend
+    a[a .<= -1.] .= -1.
+    a[a .>= 1.] .= 1.
+    
+    # Get r, tval, and pval
+    b = a[2, :]
+    a = a[1, :]
+    r = sum(a .* b) / sqrt(sum(a.^2) * sum(b.^2))
+    tval = r * sqrt((nx - 2) / (1 - r^2))
+    pval = 2 * ccdf(TDist(nx - 2), abs(tval))
+
+    return r, pval
+end
