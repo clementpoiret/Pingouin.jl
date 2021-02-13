@@ -633,7 +633,7 @@ end
 
 
 """
-    friedman(data, dv, within, subject)
+    friedman(data, dv, within, subject, method)
 
 Friedman test for repeated measurements.
 
@@ -642,14 +642,23 @@ Arguments
 - `data::DataFrame`,
 - `dv::Union{String,Symbol}`: Name of column containing the dependent variable,
 - `within::Union{String,Symbol}`: Name of column containing the within-subject factor,
-- `subject::Union{String,Symbol}`: Name of column containing the subject identifier.
+- `subject::Union{String,Symbol}`: Name of column containing the subject identifier,
+- `method::String`: Statistical test to perform. Must be `"chisq"` (chi-square test) or `"f"` (F test).
+
+See notes below for explanation.
 
 Returns
 -------
-- `stats::DataFrame`
+- `"W"`: Kendall's coefficient of concordance, corrected for ties,
+- `stats::DataFrame`, if `method="chisq"`
     * `"Q"`: The Friedman Q statistic, corrected for ties,
     * `"p-unc"`: Uncorrected p-value,
     * `"ddof"`: degrees of freedom.
+- `stats::DataFrame`, if `method="f"`:
+    * `"F"`: The Friedman F statistic, corrected for ties,
+    * `"p-unc"`: Uncorrected p-value,
+    * `"ddof1"`: degrees of freedom of the numerator,
+    * `"ddof2"`: degrees of freedom of the denominator.
 
 Notes
 -----
@@ -668,6 +677,21 @@ repeated measurements.
 
 NaN values are automatically removed.
 
+The Friedman test is equivalent to the test of significance of Kendalls's
+coefficient of concordance (Kendall's W). Most commonly a Q statistic,
+which has asymptotical chi-squared distribution, is computed and used for
+testing. However, in [1] they showed the chi-squared test to be overly
+conservative for small numbers of samples and repeated measures. Instead
+they recommend the F test, which has the correct size and behaves like a
+permutation test, but is computationaly much easier.
+
+References
+----------
+[1] Marozzi, M. (2014). Testing for concordance between several
+    criteria. Journal of Statistical Computation and Simulation,
+    84(9), 1843–1850. https://doi.org/10.1080/00949655.2013.766189
+
+
 Examples
 --------
 Compute the Friedman test for repeated measurements.
@@ -678,18 +702,34 @@ julia> Pingouin.friedman(data,
                          dv="DesireToKill",
                          within="Disgustingness",
                          subject="Subject")
-                         1×4 DataFrame
-1×4 DataFrame
- Row │ Source          ddof   Q        p_unc      
-     │ String          Int64  Float64  Float64    
-─────┼────────────────────────────────────────────
-   1 │ Disgustingness      1  9.22785  0.00238362
+1×5 DataFrame
+ Row │ Source          W          ddof   Q        p_unc      
+     │ String          Float64    Int64  Float64  Float64    
+─────┼───────────────────────────────────────────────────────
+   1 │ Disgustingness  0.0992242      1  9.22785  0.00238362
+```
+
+This time we will use the F test method.
+
+```julia-repl
+julia> data = Pingouin.read_dataset("rm_anova")
+julia> Pingouin.friedman(data,
+                         dv="DesireToKill",
+                         within="Disgustingness",
+                         subject="Subject",
+                         method="f")
+1×6 DataFrame
+ Row │ Source          W          ddof1     ddof2    F        p_unc      
+     │ String          Float64    Float64   Float64  Float64  Float64    
+─────┼───────────────────────────────────────────────────────────────────
+   1 │ Disgustingness  0.0992242  0.978495  90.0215  10.1342  0.00213772
 ```
 """
 function friedman(data::DataFrame;
                   dv::Union{String,Symbol},
                   within::Union{String,Symbol},
-                  subject)::DataFrame
+                  subject::Union{String,Symbol},
+                  method::String="chisq")::DataFrame
     # Collapse to the mean
     function m(x)
         return mean(skipmissing(x))
@@ -712,9 +752,6 @@ function friedman(data::DataFrame;
     
     ssbn = sum(sum(ranked, dims=1).^2)
 
-    # Compute the test statistic
-    Q = (12 / (n * k * (k + 1))) * ssbn - 3 * n * (k + 1)
-
     # Correct for ties
     ties = 0
     for i in 1:n
@@ -724,15 +761,36 @@ function friedman(data::DataFrame;
         end
     end
 
-    c = 1 - ties / float(k * (k * k - 1) * n)
-    Q /= c
+    # Compute Kendall's W corrected for ties
+    W = (12 * ssbn - 3 * n * n * k * (k + 1) * (k + 1)) / (n * n * k * (k - 1) * (k + 1) - n * ties)
 
-    # Approximate the p-value
-    ddof1 = k - 1
-    p_unc = ccdf(Chisq(ddof1), Q)
+    if method == "chisq"
+        # Compute the Q statistic
+        Q = n * (k - 1) * W
 
-    return DataFrame(Source = within,
-                     ddof = ddof1,
-                     Q = Q,
-                     p_unc = p_unc)
+        # Approximate the p-value
+        ddof1 = k - 1
+        p_unc = ccdf(Chisq(ddof1), Q)
+
+        return DataFrame(Source = within,
+                         W = W,
+                         ddof = ddof1,
+                         Q = Q,
+                         p_unc = p_unc)
+    elseif method == "f"
+        # Compute the F statistic
+        F = W * (n - 1) / (1 - W)
+
+        # Approximate the p-value
+        ddof1 = k - 1 - 2 / n
+        ddof2 = (n - 1) * ddof1
+        p_unc = ccdf(FDist(ddof1, ddof2), F)
+
+        return DataFrame(Source = within,
+                         W = W,
+                         ddof1 = ddof1,
+                         ddof2 = ddof2,
+                         F = F,
+                         p_unc = p_unc)
+    end
 end
