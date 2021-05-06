@@ -801,7 +801,7 @@ function sphericity(data::DataFrame;
         # 1 - Estimate the population covariance (= double-centered)
         # 2 - Calculate n-1 eigenvalues
         # 3 - Compute Mauchly's statistic
-        S = cov(convert(Matrix, data))
+        S = cov(Matrix(data))
         S_pop = S .- mean(S, dims=2) .- mean(S, dims=1) .+ mean(S)
         eig = eigvals(S_pop)[2:end]
         eig = eig[eig .> 0.001]  # Additional check to remove very low eig
