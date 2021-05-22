@@ -267,7 +267,7 @@ function bayesfactor_pearson(r::Float64,
             else
                 # We expect the correlation to be negative
                 bf10 = bf10neg
-end
+            end
         end
     end
     return bf10

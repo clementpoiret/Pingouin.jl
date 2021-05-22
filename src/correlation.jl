@@ -485,6 +485,8 @@ function corr(x::Array{<:Number},
               method::String="pearson")
     # todo: Remove rows with missing values
     # todo: update when p-values available in hypothesistests.jl
+    @assert tail in ["two-sided", "one-sided"] "Tail must be \"two-sided\" or \"one-sided\"."
+
     nx = size(x)[1]
     r = pval = bf10 = outliers = pr = NaN
     # Compute correlation coefficient
@@ -539,4 +541,190 @@ function corr(x::Array{<:Number},
                      p_val=pval,
                      BF10=bf10,
                      power=pr)
+end
+
+
+"""
+    partial_corr(data, x, y, covar, x_covar, y_covar, tail, method)
+
+Partial and semi-partial correlation.
+
+Arguments
+----------
+- `data::DataFrame`: Dataframe,
+- `x, y::string`: x and y. Must be names of columns in `data`,
+- `covar::Union{Array{String,1},String}`: Covariate(s). Must be a names of columns in `data`. Use a list if there are two or more covariates.
+- `x_covar::Union{Array{String,1},String}`: Covariate(s) for the `x` variable. This is used to compute semi-partial correlation (i.e. the effect of `x_covar` is removed from `x` but not from `y`). Note that you cannot specify both `covar` and `x_covar`.
+- `y_covar::Union{Array{String,1},String}`: Covariate(s) for the `y` variable. This is used to compute semi-partial correlation (i.e. the effect of `y_covar` is removed from `y` but not from `x`). Note that you cannot specify both `covar` and `y_covar`.
+- `tail::String`: Specify whether to return `"one-sided"` or `"two-sided"` p-value. Note that the former are simply half the latter.
+- `method::String`: Correlation type:
+    * `"pearson"`: Pearson \$r\$ product-moment correlation
+    * `"spearman"`: Spearman \$\rho\$ rank-order correlation
+    * `"kendall"`: Kendall's \$\tau_B\$ correlation (for ordinal data)
+    * `"bicor"`: Biweight midcorrelation (robust)
+    * `"percbend"`: Percentage bend correlation (robust)
+    * `"shepherd"`: Shepherd's pi correlation (robust)
+    * `"skipped"`: Skipped correlation (robust)
+
+Returns
+-------
+- `stats::DataFrame`
+    * `"n"`: Sample size (after removal of missing values)
+    * `"outliers"`: number of outliers, only if a robust method was used
+    * `"r"`: Correlation coefficient
+    * `"CI95"`: 95% parametric confidence intervals around ``r``
+    * `"r2"`: R-squared (``= r^2``)
+    * `"adj_r2"`: Adjusted R-squared
+    * `"p-val"`: tail of the test
+    * `"BF10"`: Bayes Factor of the alternative hypothesis (only for Pearson correlation)
+    * `"power"`: achieved power of the test (= 1 - type II error).
+
+Notes
+-----
+From [1]:
+
+    *With partial correlation, we find the correlation between x
+    and y holding C constant for both x and
+    y. Sometimes, however, we want to hold C constant for
+    just x or just y. In that case, we compute a
+    semi-partial correlation. A partial correlation is computed between
+    two residuals. A semi-partial correlation is computed between one
+    residual and another raw (or unresidualized) variable.*
+
+Note that if you are not interested in calculating the statistics and
+p-values but only the partial correlation matrix, a (faster)
+alternative is to use the :py:func:`pingouin.pcorr` method (see example 4).
+
+Rows with missing values are automatically removed from data. Results have
+been tested against the
+`ppcor <https://cran.r-project.org/web/packages/ppcor/index.html>`
+R package.
+
+References
+----------
+[1] http://faculty.cas.usf.edu/mbrannick/regression/Partial.html
+
+Examples
+--------
+1. Partial correlation with one covariate
+
+```julia-repl
+julia> using Pingouin
+julia> df = Pingouin.read_dataset("partial_corr")
+julia> Pingouin.partial_corr(df, x="x", y="y", covar="cv1")
+┌ Warning: P-Value not implemented yet in HypothesisTests.jl
+└ @ Main REPL[193]:11
+1×9 DataFrame
+ Row │ n      outliers  r         CI95                  r2        adj_r2    p_val    BF10     power   
+     │ Int64  Float64   Float64   Array…                Float64   Float64   Float64  Float64  Float64 
+─────┼────────────────────────────────────────────────────────────────────────────────────────────────
+   1 │    30      NaN   0.568169  [0.261409, 0.770684]  0.322816  0.272655     NaN   37.7732     NaN
+```
+
+2. Spearman partial correlation with several covariates
+
+```julia-repl
+julia> # Partial correlation of x and y controlling for cv1, cv2 and cv3
+julia> Pingouin.partial_corr(df, x="x", y="y", covar=["cv1", "cv2", "cv3"], method="spearman")
+       n      r         CI95%     r2  adj_r2  p-val  power
+spearman  30  0.491  [0.16, 0.72]  0.242   0.185  0.006  0.809
+```
+
+3. Semi-partial correlation on x
+
+```julia-repl
+julia> pg.partial_corr(data=df, x='x', y='y',
+...                 x_covar=['cv1', 'cv2', 'cv3']).round(3)
+          n      r         CI95%     r2  adj_r2  p-val   BF10  power
+pearson  30  0.463  [0.12, 0.71]  0.215   0.156   0.01  5.404  0.752
+```
+
+4. Semi-partial on both x and y controlling for different variables
+
+```julia-repl
+julia> pg.partial_corr(data=df, x='x', y='y', x_covar='cv1',
+...                 y_covar=['cv2', 'cv3'], method='spearman').round(3)
+           n      r         CI95%     r2  adj_r2  p-val  power
+spearman  30  0.429  [0.08, 0.68]  0.184   0.123  0.018  0.676
+```
+"""
+function partial_corr(data::DataFrame;
+                      x::Union{String,Symbol},
+                      y::Union{String,Symbol},
+                      covar::Union{Array{T,1},Nothing,String,Symbol}=nothing,
+                      x_covar::Union{Array{T,1},Nothing,String,Symbol}=nothing,
+                      y_covar::Union{Array{T,1},Nothing,String,Symbol}=nothing,
+                      tail::String="two-sided",
+                      method::String="pearson")::DataFrame where T <: Union{Nothing,String,Symbol}
+    # todo: multiple dispatch
+    @assert size(data)[1] > 2 "Data must have at least 3 samples."
+    if (covar !== nothing) & (x_covar !== nothing || y_covar !== nothing)
+        throw(DomainError([x_covar, y_covar], "Cannot specify both covar and {x,y}_covar."))
+    end
+    @assert x != covar "x and covar must be independant."
+    @assert y != covar "y and covar must be independant."
+    @assert x != y "x and y must be independant."
+    
+    if !isa(covar, Array)
+        covar = [covar]
+    end
+    if !isa(x_covar, Array)
+        x_covar = [x_covar]
+    end
+    if !isa(y_covar, Array)
+        y_covar = [y_covar]
+    end
+    
+    col = [i for i in [x,
+                       y,
+                       covar...,
+                       x_covar...,
+                       y_covar...] if i !== nothing]
+
+    @assert all([Symbol(c) in propertynames(data) for c in col]) "columns are not in dataframe."
+
+    data = data[:, col]
+    # Remove rows with NaNs
+    data = data[completecases(data), :]
+    @assert size(data)[1] > 2 "Data must have at least 3 non-NaN samples."
+
+    # Standardize (= no need for an intercept in least-square regression)
+    C = (data .- mean.(eachcol(data))') ./ (std.(eachcol(data))')
+
+    if covar[1] !== nothing
+        # PARTIAL CORRELATION
+        cvar = convert(Matrix, C[:, covar])
+        β_x = qr(cvar, Val(true)) \ C[:, x]
+        β_y = qr(cvar, Val(true)) \ C[:, y]
+        if !isa(β_x, Array)
+            β_x = [β_x]
+        end
+        if !isa(β_y, Array)
+            β_y = [β_y]
+        end
+        res_x = C[:, x] .- cvar .⋅ β_x'  # todo: wrong
+        res_y = C[:, y] .- cvar .⋅ β_y'
+    else
+        # SEMI-PARTIAL CORRELATION
+        # Initialize "fake" residuals
+        res_x, res_y = data[:, x], data[:, y]
+        if x_covar[1] !== nothing
+            cvar = convert(Matrix, C[:, x_covar])
+            β_x = qr(cvar, Val(true)) \ C[:, x]
+            if isa(β_x, Array)
+                β_x = β_x[1]
+            end
+            res_x = C[:, x] .- cvar .⋅ β_x
+        end
+        if y_covar[1] !== nothing
+            cvar = convert(Matrix, C[:, y_covar])
+            β_y = qr(cvar, Val(true)) \ C[:, y]
+            if isa(β_y, Array)
+                β_y = β_y[1]
+            end
+            res_y = C[:, y] .- cvar .⋅ β_y
+        end
+    end
+
+    return corr(res_x[:, 1], res_y[:, 1], method=method, tail=tail)
 end
