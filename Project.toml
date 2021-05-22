@@ -1,7 +1,7 @@
 name = "Pingouin"
 uuid = "61ac1d4c-5a1f-4019-949c-7919748f8c44"
 authors = ["Clément POIRET <poiret.clement@outlook.fr>"]
-version = "0.2.2"
+version = "0.2.3"
 
 [deps]
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
