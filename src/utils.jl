@@ -16,21 +16,21 @@ Returns
 - `pval::Float64`: P-value.
 """
 function _perm_pval(bootstat::Array{<:Number},
-                    estimate::Number,
-                    alternative::String)::Float64
+    estimate::Number,
+    alternative::String)::Float64
 
     @assert tail in ["two-sided", "less", "greater"] "Tail must be \"two-sided\", \"less\" or \"greater\"."
 
     n_boot = length(bootstat)
     @assert n_boot > 0 "Bootstrap distribution must have at least one element."
 
-    if (tail == "greater") {
+    if (tail == "greater")
         pval = sum(bootstat >= estimate) / n_boot
-    } else if (tail == "less") {
+    elseif (tail == "less")
         pval = sum(bootstat <= estimate) / n_boot
-    } else {
+    else
         pval = sum(abs(bootstat) >= abs(estimate)) / n_boot
-    }
+    end
 
     return pval
 end
