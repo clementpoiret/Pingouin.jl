@@ -17,19 +17,19 @@ Returns
 """
 function _perm_pval(bootstat::Array{<:Number},
     estimate::Number,
-    alternative::String)::Float64
+    alternative::String = "two-sided")::Float64
 
-    @assert tail in ["two-sided", "less", "greater"] "Tail must be \"two-sided\", \"less\" or \"greater\"."
+    @assert alternative in ["two-sided", "less", "greater"] "Alternative must be \"two-sided\", \"less\" or \"greater\"."
 
     n_boot = length(bootstat)
     @assert n_boot > 0 "Bootstrap distribution must have at least one element."
 
-    if (tail == "greater")
-        pval = sum(bootstat >= estimate) / n_boot
-    elseif (tail == "less")
-        pval = sum(bootstat <= estimate) / n_boot
+    if (alternative == "greater")
+        pval = sum(bootstat .>= estimate) / n_boot
+    elseif (alternative == "less")
+        pval = sum(bootstat .<= estimate) / n_boot
     else
-        pval = sum(abs(bootstat) >= abs(estimate)) / n_boot
+        pval = sum(abs.(bootstat) .>= abs(estimate)) / n_boot
     end
 
     return pval
