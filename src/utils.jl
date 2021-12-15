@@ -7,7 +7,7 @@ Compute p-values from a permutation test.
 
 Arguments
 ---------
-- `bootstat::Array{<:Number}`: Permation distribution.
+- `bootstat::Vector{<:Number}`: Permation distribution.
 - `estimate::Number`: Point estimate.
 - `alternative::String`: Tail for p-value. One of "two-sided" (default), "less", "greater".
 
@@ -15,7 +15,7 @@ Returns
 -------
 - `pval::Float64`: P-value.
 """
-function _perm_pval(bootstat::Array{<:Number},
+function _perm_pval(bootstat::Vector{<:Number},
     estimate::Number,
     alternative::String = "two-sided")::Float64
 
