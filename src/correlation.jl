@@ -7,6 +7,54 @@ using Statistics
 using StatsBase
 using LinearAlgebra
 
+"""
+    _correl_pvalue(r, n[, k, alternative])
+
+Compute the p-value of a correlation coefficient.
+
+https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.pearsonr.html
+https://en.wikipedia.org/wiki/Pearson_correlation_coefficient#Using_the_exact_distribution
+See also scipy.stats._ttest_finish
+
+Arguments
+---------
+- `r::Float64`: Correlation coefficient.
+- `n::Int64`: Sample size.
+- `k::Int64`: Number of covariates for (semi)-partial correlation.
+- `alternative::String`: Tail of the test.
+
+Returns
+-------
+- `pval::Float64`: p-value.
+
+Notes
+-----
+This uses the same approach as `scipy.stats.pearsonr` to calculate
+the p-value (i.e. using a beta distribution)
+"""
+function _correl_pvalue(r::Float64,
+    n::Int64,
+    k::Int64 = 0,
+    alternative::String = "two-sided")::Float64
+
+    @assert alternative in ["two-sided", "less", "greater"], "Alternative must be one of \"two-sided\" (default), \"greater\" or \"less\"."
+
+    # Method using a student T distribution
+    ddof = n - k - 2
+    tval = r * sqrt(ddof / (1 - r^2))
+
+
+    if alternative == "less"
+        pval = cdf(TDist(ddof), tval)
+    elseif alternative == "greater"
+        pval = ccdf(TDist(ddof), tval)
+    elseif alternative == "two-sided"
+        pval = 2 * ccdf(TDist(ddof), abs(tval))
+    end
+
+    return pval
+end
+
 
 """
     bsmahal(a, b[, n_boot])
@@ -39,24 +87,24 @@ julia> bsmahal(a, b)
 ```
 """
 function bsmahal(a::Array{T,2},
-                 b::Array{T,2};
-                 n_boot::Int64=200)::Array{Float64,2} where T <: Number
+    b::Array{T,2};
+    n_boot::Int64 = 200)::Array{Float64,2} where {T<:Number}
     n, m = size(b)
     MD = zeros(n, n_boot)
     xB = sample(1:n, (n_boot, n))
 
     # Bootstrap the MD
-    for i in 1:n_boot:1
+    for i = 1:n_boot:1
         s1 = b[xB[i, :], 1]
         s2 = b[xB[i, :], 2]
         X = hcat(s1, s2)
-        mu = mean(X, dims=1)
+        mu = mean(X, dims = 1)
         R = qr(X .- mu).R
         sol = R' \ (a .- mu)'
-        MD[:, i] = sum(sol.^2, dims=1) .* (n - 1)
+        MD[:, i] = sum(sol .^ 2, dims = 1) .* (n - 1)
     end
 
-    return mean(MD, dims=2)
+    return mean(MD, dims = 2)
 end
 
 """
@@ -101,11 +149,11 @@ julia> outliers'
 ```
 """
 function shepherd(x::Array{<:Number},
-                  y::Array{<:Number};
-                  n_boot::Int64=200)::Tuple{Float64,BitArray{2}}
+    y::Array{<:Number};
+    n_boot::Int64 = 200)::Tuple{Float64,BitArray{2}}
     X = hcat(x, y)
     # Bootstrapping on Mahalanobis distance
-    m = bsmahal(X, X, n_boot=n_boot)
+    m = bsmahal(X, X, n_boot = n_boot)
     # Determine outliers
     outliers = (m .>= 6)
     # Compute correlation
@@ -157,12 +205,12 @@ julia> pval
 ```
 """
 function percbend(x::Array{<:Number},
-                  y::Array{<:Number};
-                  β::Float64=.2)::Tuple{Float64,Float64}
+    y::Array{<:Number};
+    β::Float64 = 0.2)::Tuple{Float64,Float64}
     X = hcat(x, y)
     nx = size(X)[1]
-    M = repeat(median(X, dims=1), nx)
-    W = sort(abs.(X .- M), dims=1)
+    M = repeat(median(X, dims = 1), nx)
+    W = sort(abs.(X .- M), dims = 1)
     m = Int(floor((1 - β) * nx))
     ω = W[m, :]
     P = (X .- M) ./ ω'
@@ -176,20 +224,20 @@ function percbend(x::Array{<:Number},
         i1 = count(ψ .< -1)
         i2 = count(ψ .> 1)
         s = X[:, c]
-        s[ψ .< -1] .= 0
-        s[ψ .> 1] .= 0
+        s[ψ.<-1] .= 0
+        s[ψ.>1] .= 0
         pbos = (sum(s) + ω[c] * (i2 - i1)) / (length(s) - i1 - i2)
         a[c, :] = (X[:, c] .- pbos) ./ ω[c]
     end
 
     # Bend
-    a[a .<= -1.] .= -1.
-    a[a .>= 1.] .= 1.
-    
+    a[a.<=-1.0] .= -1.0
+    a[a.>=1.0] .= 1.0
+
     # Get r, tval, and pval
     b = a[2, :]
     a = a[1, :]
-    r = sum(a .* b) / sqrt(sum(a.^2) * sum(b.^2))
+    r = sum(a .* b) / sqrt(sum(a .^ 2) * sum(b .^ 2))
     tval = r * sqrt((nx - 2) / (1 - r^2))
     pval = 2 * ccdf(TDist(nx - 2), abs(tval))
 
@@ -238,8 +286,8 @@ julia> pval
 ```
 """
 function bicor(x::Array{<:Number},
-               y::Array{<:Number};
-               c::Float64=9.0)
+    y::Array{<:Number};
+    c::Float64 = 9.0)
     # Calculate median
     nx = size(x)[1]
     x_median = median(x)
@@ -258,13 +306,13 @@ function bicor(x::Array{<:Number},
     # Calculate weights
     u = (x .- x_median) ./ (c * x_mad)
     v = (y .- y_median) ./ (c * y_mad)
-    w_x = (1 .- u.^2).^2 .* ((1 .- abs.(u)) .> 0)
-    w_y = (1 .- v.^2).^2 .* ((1 .- abs.(v)) .> 0)
+    w_x = (1 .- u .^ 2) .^ 2 .* ((1 .- abs.(u)) .> 0)
+    w_y = (1 .- v .^ 2) .^ 2 .* ((1 .- abs.(v)) .> 0)
 
     # Normalize x and y by weights
     x_norm = (x .- x_median) .* w_x
     y_norm = (y .- y_median) .* w_y
-    denom = (sqrt(sum(x_norm.^2)) * sqrt(sum(y_norm.^2)))
+    denom = (sqrt(sum(x_norm .^ 2)) * sqrt(sum(y_norm .^ 2)))
 
     # Calculate r, t, and two-sided p-value
     r = sum(x_norm .* y_norm) / denom
@@ -480,9 +528,9 @@ julia> Pingouin.corr(x, y, tail="one-sided", method="pearson")
 ```
 """
 function corr(x::Array{<:Number},
-              y::Array{<:Number};
-              tail::String="two-sided",
-              method::String="pearson")
+    y::Array{<:Number};
+    tail::String = "two-sided",
+    method::String = "pearson")
     # todo: Remove rows with missing values
     # todo: update when p-values available in hypothesistests.jl
     @assert tail in ["two-sided", "one-sided"] "Tail must be \"two-sided\" or \"one-sided\"."
@@ -493,7 +541,7 @@ function corr(x::Array{<:Number},
     if method == "pearson"
         @warn "P-Value not implemented yet in HypothesisTests.jl"
         r = cor(x, y)
-        bf10 = bayesfactor_pearson(r, nx, tail=tail)
+        bf10 = bayesfactor_pearson(r, nx, tail = tail)
     elseif method == "spearman"
         @warn "P-Value not implemented yet in HypothesisTests.jl"
         r = corspearman(x, y)
@@ -513,14 +561,14 @@ function corr(x::Array{<:Number},
     end
 
     if r == NaN
-        return DataFrame(n=nx,
-                         r=NaN,
-                         CI95=NaN,
-                         r2=NaN,
-                         adj_r2=NaN,
-                         p_val=NaN,
-                         BF10=NaN,
-                         power=NaN)
+        return DataFrame(n = nx,
+            r = NaN,
+            CI95 = NaN,
+            r2 = NaN,
+            adj_r2 = NaN,
+            p_val = NaN,
+            BF10 = NaN,
+            power = NaN)
     end
 
     # Compute r2 and adj_r2
@@ -528,19 +576,19 @@ function corr(x::Array{<:Number},
     adj_r2 = 1 - (((1 - r2) * (nx - 1)) / (nx - 3))
 
     # Compute the parametric 95% confidence interval and power
-    ci = compute_esci(stat=r, nx=nx, ny=nx, eftype="r", decimals=6)
+    ci = compute_esci(stat = r, nx = nx, ny = nx, eftype = "r", decimals = 6)
     # todo: implement power_corr
     # pr = power_corr(r=r, n=nx, power=None, alpha=0.05, tail=tail)
 
-    return DataFrame(n=nx,
-                     outliers=outliers,
-                     r=r,
-                     CI95=[ci],
-                     r2=r2,
-                     adj_r2=adj_r2,
-                     p_val=pval,
-                     BF10=bf10,
-                     power=pr)
+    return DataFrame(n = nx,
+        outliers = outliers,
+        r = r,
+        CI95 = [ci],
+        r2 = r2,
+        adj_r2 = adj_r2,
+        p_val = pval,
+        BF10 = bf10,
+        power = pr)
 end
 
 
@@ -649,13 +697,13 @@ spearman  30  0.429  [0.08, 0.68]  0.184   0.123  0.018  0.676
 ```
 """
 function partial_corr(data::DataFrame;
-                      x::Union{String,Symbol},
-                      y::Union{String,Symbol},
-                      covar::Union{Array{T,1},Nothing,String,Symbol}=nothing,
-                      x_covar::Union{Array{T,1},Nothing,String,Symbol}=nothing,
-                      y_covar::Union{Array{T,1},Nothing,String,Symbol}=nothing,
-                      tail::String="two-sided",
-                      method::String="pearson")::DataFrame where T <: Union{Nothing,String,Symbol}
+    x::Union{String,Symbol},
+    y::Union{String,Symbol},
+    covar::Union{Array{T,1},Nothing,String,Symbol} = nothing,
+    x_covar::Union{Array{T,1},Nothing,String,Symbol} = nothing,
+    y_covar::Union{Array{T,1},Nothing,String,Symbol} = nothing,
+    tail::String = "two-sided",
+    method::String = "pearson")::DataFrame where {T<:Union{Nothing,String,Symbol}}
     # todo: multiple dispatch
     @assert size(data)[1] > 2 "Data must have at least 3 samples."
     if (covar !== nothing) & (x_covar !== nothing || y_covar !== nothing)
@@ -664,7 +712,7 @@ function partial_corr(data::DataFrame;
     @assert x != covar "x and covar must be independant."
     @assert y != covar "y and covar must be independant."
     @assert x != y "x and y must be independant."
-    
+
     if !isa(covar, Array)
         covar = [covar]
     end
@@ -674,12 +722,12 @@ function partial_corr(data::DataFrame;
     if !isa(y_covar, Array)
         y_covar = [y_covar]
     end
-    
+
     col = [i for i in [x,
-                       y,
-                       covar...,
-                       x_covar...,
-                       y_covar...] if i !== nothing]
+        y,
+        covar...,
+        x_covar...,
+        y_covar...] if i !== nothing]
 
     @assert all([Symbol(c) in propertynames(data) for c in col]) "columns are not in dataframe."
 
@@ -726,5 +774,5 @@ function partial_corr(data::DataFrame;
         end
     end
 
-    return corr(res_x[:, 1], res_y[:, 1], method=method, tail=tail)
+    return corr(res_x[:, 1], res_y[:, 1], method = method, tail = tail)
 end
