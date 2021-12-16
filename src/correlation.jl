@@ -6,6 +6,7 @@ using Distributions
 using Statistics
 using StatsBase
 using LinearAlgebra
+using LinRegOutliers
 
 """
     _correl_pvalue(r, n[, k, alternative])
@@ -34,10 +35,10 @@ the p-value (i.e. using a beta distribution)
 """
 function _correl_pvalue(r::Float64,
     n::Int64,
-    k::Int64 = 0,
+    k::Int64 = 0;
     alternative::String = "two-sided")::Float64
 
-    @assert alternative in ["two-sided", "less", "greater"], "Alternative must be one of \"two-sided\" (default), \"greater\" or \"less\"."
+    @assert alternative in ["two-sided", "less", "greater"] "Alternative must be one of \"two-sided\" (default), \"greater\" or \"less\"."
 
     # Method using a student T distribution
     ddof = n - k - 2
@@ -55,6 +56,71 @@ function _correl_pvalue(r::Float64,
     return pval
 end
 
+"""
+    skipped(x, y[, corr_type])
+
+Skipped correlation (Rousselet and Pernet 2012).
+
+Arguments
+---------
+- `x, y::Vector{<:Number}`: First and second set of observations. x and y must be independent.
+- `corr_type::String`: Method used to compute the correlation after outlier removal. Can be either 'spearman' (default) or 'pearson'.
+
+Returns
+-------
+- `r::Float64`: Skipped correlation coefficient.
+- `pval::Float64`: Two-tailed p-value.
+- `outliers::BitArray`: Indicate if value is an outlier or not.
+
+Notes
+-----
+The skipped correlation involves multivariate outlier detection using a
+projection technique (Wilcox, 2004, 2005). First, a robust estimator of
+multivariate location and scatter, for instance the minimum covariance
+determinant estimator (MCD; Rousseeuw, 1984; Rousseeuw and van Driessen,
+1999; Hubert et al., 2008) is computed. Second, data points are
+orthogonally projected on lines joining each of the data point to the
+location estimator. Third, outliers are detected using a robust technique.
+Finally, Spearman correlations are computed on the remaining data points
+and calculations are adjusted by taking into account the dependency among
+the remaining data points.
+
+Code inspired by Matlab code from Cyril Pernet and Guillaume
+Rousselet [1].
+
+References
+----------
+[1] Pernet CR, Wilcox R, Rousselet GA. Robust Correlation Analyses:
+    False Positive and Power Validation Using a New Open Source Matlab
+    Toolbox. Frontiers in Psychology. 2012;3:606.
+    doi:10.3389/fpsyg.2012.00606.
+"""
+function skipped(x::Vector{<:Number},
+    y::Vector{<:Number};
+    corr_type::String = "spearman")::Tuple{Float64,Float64,BitVector}
+
+    @assert corr_type in ["spearman", "pearson"], "Correlation type must be one of 'spearman' (default) or 'pearson'."
+
+    X = hcat(x, y)
+    X_df = DataFrame(X, :auto)
+    nrows = size(X)[1]
+
+    mincovdet = mcd(X_df, alpha = 2.0)
+    outliers_idx = mincovdet["outliers"]
+    idx = BitVector(ones(nrows))
+    idx[outliers_idx] .= 0
+
+    if corr_type == "spearman"
+        r = corspearman(x[idx], y[idx])
+    elseif corr_type == "pearson"
+        r = cor(x[idx], y[idx])
+    end
+
+    @warn "Warning: p-value maybe different than expected."
+    pval = _correl_pvalue(r, nrows, 1, alternative = "two-sided")
+
+    return r, pval, @. !idx
+end
 
 """
     bsmahal(a, b[, n_boot])
