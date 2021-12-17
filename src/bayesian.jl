@@ -83,8 +83,8 @@ Bayes Factor: 0.024
 ```
 """
 function bayesfactor_binom(k::Int64,
-                           n::Int64,
-                           p::Float64=.5)::Float64
+    n::Int64,
+    p::Float64 = 0.5)::Float64
     @assert(0 < p < 1, "p must be between 0 and 1.")
     @assert(k < n, "k (successes) cannot be higher than n (trials).")
 
@@ -92,14 +92,14 @@ function bayesfactor_binom(k::Int64,
         binom_pmf = pdf(Binomial(n, g), k)
         return binom_pmf
     end
-    
+
     binom_bf = quadgk(x -> f(x, k, n), 0, 1)[1] / pdf(Binomial(n, p), k)
     return binom_bf
 end
 
 
 """
-    bayesfactor_pearson(r, n[, tail, method, kappa])
+    bayesfactor_pearson(r, n[, alternative, method, kappa])
 
 Bayes Factor of a Pearson correlation.
 
@@ -107,7 +107,7 @@ Arguments
 ----------
 - `r::Float64`: Pearson correlation coefficient.
 - `n::Int64`: Sample size.
-- `tail::String`: Tail of the alternative hypothesis. Can be *'two-sided'*, *'one-sided'*, *'greater'* or *'less'*. *'greater'* corresponds to a positive correlation, *'less'* to a negative correlation. If *'one-sided'*, the directionality is inferred based on the ``r`` value (= *'greater'* if ``r`` > 0, *'less'* if ``r`` < 0).
+- `alternative::String`: Alternative hypothesis. Can be *'two-sided'*, *'one-sided'*, *'greater'* or *'less'*. *'greater'* corresponds to a positive correlation, *'less'* to a negative correlation. If *'one-sided'*, the directionality is inferred based on the ``r`` value (= *'greater'* if ``r`` > 0, *'less'* if ``r`` < 0).
 - `method::String`: Method to compute the Bayes Factor. Can be *'ly'* (default) or *'wetzels'*. The former has an exact analytical solution, while the latter requires integral solving (and is therefore slower). *'wetzels'* was the default in Pingouin <= 0.2.5. See Notes for details.
 - `kappa::Float64`: Kappa factor. This is sometimes called the *rscale* parameter, and
 is only used when ``method`` is *'ly'*.
@@ -174,7 +174,7 @@ Compare to Wetzels method:
 
 ```julia-repl
 julia> bf = Pingouin.bayesfactor_pearson(r, n,
-                                    tail="two-sided",
+                                    alternative="two-sided",
                                     method="wetzels",
                                     kappa=1.)
 julia> print("Bayes Factor: ", round.(bf, digits=3))
@@ -185,32 +185,32 @@ One-sided test
 
 ```julia-repl
 julia> bf10pos = Pingouin.bayesfactor_pearson(r, n, 
-                                         tail="one-sided",
+                                         alternative="one-sided",
                                          method="ly",
                                          kappa=1.0)
 julia> bf10neg = Pingouin.bayesfactor_pearson(r, n,
-                                         tail="less",
+                                         alternative="less",
                                          method="ly",
                                          kappa=1.0)
 julia> print("BF-pos: ", round.(bf10pos, digits=3)," BF-neg: ", round.(bf10neg, digits=3))
 BF-pos: 21.185, BF-neg: 0.082
 ```
 
-We can also only pass `tail='one-sided'` and Pingouin will automatically
+We can also only pass `alternative='one-sided'` and Pingouin will automatically
 infer the directionality of the test based on the ``r`` value.
 
 ```julia-repl
-julia> print("BF: ", round.(Pingouin.bayesfactor_pearson(r, n, tail="one-sided"), digits=3))
+julia> print("BF: ", round.(Pingouin.bayesfactor_pearson(r, n, alternative="one-sided"), digits=3))
 BF: 21.185
 ```
 """
 function bayesfactor_pearson(r::Float64,
-                             n::Int64;
-                             tail::String="two-sided",
-                             method::String="ly",
-                             kappa::Float64=1.)::Float64
+    n::Int64;
+    alternative::String = "two-sided",
+    method::String = "ly",
+    kappa::Float64 = 1.0)::Float64
     @assert(lowercase(method) in ["ly", "wetzels"], "Method not recognized.")
-    @assert(lowercase(tail) in ["two-sided", "one-sided", "greater", "less", "g", "l", "positive", "negative", "pos", "neg"])
+    @assert(lowercase(alternative) in ["two-sided", "one-sided", "greater", "less", "g", "l", "positive", "negative", "pos", "neg"])
 
     # Wrong input
     if !isfinite(r) || n < 2
@@ -219,7 +219,7 @@ function bayesfactor_pearson(r::Float64,
 
     @assert(-1 <= r <= 1, "r must be between -1 and 1.")
 
-    if lowercase(tail) != "two-sided" && lowercase(method) == "wetzels"
+    if lowercase(alternative) != "two-sided" && lowercase(method) == "wetzels"
         @warn "One-sided Bayes Factor are not supported by the Wetzels's method. Switching to method='ly'."
         method = "ly"
     end
@@ -229,10 +229,12 @@ function bayesfactor_pearson(r::Float64,
 
         function f(g, r, n)
             return exp(((n - 2) / 2) * log(1 + g) + (-(n - 1) / 2)
-                       * log(1 + (1 - r^2) * g) + (-3 / 2)
-        * log(g) + - n / (2 * g))
+                                                    *
+                                                    log(1 + (1 - r^2) * g) + (-3 / 2)
+                                                                             *
+                                                                             log(g) + -n / (2 * g))
         end
-        
+
         integr = quadgk(x -> f(x, r, n), 0, Inf)[1]
         bf10 = sqrt((n / 2)) / gamma(1 / 2) * integr
     else
@@ -240,12 +242,13 @@ function bayesfactor_pearson(r::Float64,
         k = kappa
         lbeta = logbeta(1 / k, 1 / k)
         log_hyperterm = log(_₂F₁(((n - 1) / 2), ((n - 1) / 2),
-                                   ((n + 2 / k) / 2), r^2))
+            ((n + 2 / k) / 2), r^2))
         bf10 = exp((1 - 2 / k) * log(2) + 0.5 * log(pi) - lbeta
-                   + loggamma((n + 2 / k - 1) / 2) - loggamma((n + 2 / k) / 2) +
+                   +
+                   loggamma((n + 2 / k - 1) / 2) - loggamma((n + 2 / k) / 2) +
                    log_hyperterm)
 
-        if lowercase(tail) != "two-sided"
+        if lowercase(alternative) != "two-sided"
             # Directional test.
             # We need mpmath for the generalized hypergeometric function
             hyper_term = float(_₃F₂(1, n / 2, n / 2, 3 / 2, (2 + k * (n + 1)) / (2 * k), r^2))
@@ -254,14 +257,14 @@ function bayesfactor_pearson(r::Float64,
 
             bf10neg = bf10 - C
             bf10pos = 2 * bf10 - bf10neg
-            if lowercase(tail) in ["one-sided"]
+            if lowercase(alternative) in ["one-sided"]
                 # Automatically find the directionality of the test based on r
                 if r >= 0
                     bf10 = bf10pos
                 else
                     bf10 = bf10neg
                 end
-            elseif lowercase(tail) in ["greater", "g", "positive", "pos"]
+            elseif lowercase(alternative) in ["greater", "g", "positive", "pos"]
                 # We expect the correlation to be positive
                 bf10 = bf10pos
             else
@@ -363,16 +366,16 @@ BF10-greater: 0.029 | BF10-less: 34.369
 ```
 """
 function bayesfactor_ttest(t::Float64,
-                           nx::Int64,
-                           ny::Union{Int64,Nothing}=nothing;
-                           paired::Bool=false,
-                           tail::String="two-sided",
-                           r::Float64=.707)::Float64
+    nx::Int64,
+    ny::Union{Int64,Nothing} = nothing;
+    paired::Bool = false,
+    tail::String = "two-sided",
+    r::Float64 = 0.707)::Float64
     # Check tails
     possible_tails = ["two-sided", "one-sided", "greater", "less"]
     @assert(tail in possible_tails, "Invalid tail argument.")
     if ny === nothing || ny == 1
-        one_sample = true 
+        one_sample = true
     else
         one_sample = false
     end
@@ -385,14 +388,14 @@ function bayesfactor_ttest(t::Float64,
 
     # Function to be integrated
     function f(g, t, n, r, df)
-        return (1 + n * g * r^2)^(-.5) * (1 + t^2 / ((1 + n * g * r^2) * df))^(-(df + 1) / 2) * (2 * π)^(-.5) * g^(-3. / 2) * exp(-1 / (2 * g))
+        return (1 + n * g * r^2)^(-.5) * (1 + t^2 / ((1 + n * g * r^2) * df))^(-(df + 1) / 2) * (2 * π)^(-.5) * g^(-3.0 / 2) * exp(-1 / (2 * g))
     end
 
     # Define n and degrees of freedom
     if one_sample || paired
         n = nx
         df = n - 1
-        else
+    else
         n = nx * ny / (nx + ny)
         df = nx + ny - 2
     end
@@ -403,7 +406,7 @@ function bayesfactor_ttest(t::Float64,
 
     # Tail
     if tail == "two-sided"
-        tail_binary = "two-sided" 
+        tail_binary = "two-sided"
     else
         tail_binary = "one-sided"
     end
