@@ -764,13 +764,11 @@ Examples
 julia> using Pingouin
 julia> df = Pingouin.read_dataset("partial_corr")
 julia> Pingouin.partial_corr(df, x="x", y="y", covar="cv1")
-┌ Warning: P-Value not implemented yet in HypothesisTests.jl
-└ @ Main REPL[193]:11
-1×9 DataFrame
- Row │ n      outliers  r         CI95                  r2        adj_r2    p_val    BF10     power   
-     │ Int64  Float64   Float64   Array…                Float64   Float64   Float64  Float64  Float64 
-─────┼────────────────────────────────────────────────────────────────────────────────────────────────
-   1 │    30      NaN   0.568169  [0.261409, 0.770684]  0.322816  0.272655     NaN   37.7732     NaN
+1×4 DataFrame
+ Row │ n      r         CI95                  p_val      
+     │ Int64  Float64   Array…                Float64    
+─────┼───────────────────────────────────────────────────
+   1 │    30  0.568169  [0.254702, 0.773586]  0.00130306
 ```
 
 2. Spearman partial correlation with several covariates
@@ -778,26 +776,22 @@ julia> Pingouin.partial_corr(df, x="x", y="y", covar="cv1")
 ```julia-repl
 julia> # Partial correlation of x and y controlling for cv1, cv2 and cv3
 julia> Pingouin.partial_corr(df, x="x", y="y", covar=["cv1", "cv2", "cv3"], method="spearman")
-       n      r         CI95%     r2  adj_r2  p-val  power
-spearman  30  0.491  [0.16, 0.72]  0.242   0.185  0.006  0.809
+1×4 DataFrame
+ Row │ n      r         CI95                  p_val      
+     │ Int64  Float64   Array…                Float64    
+─────┼───────────────────────────────────────────────────
+   1 │    30  0.520921  [0.175685, 0.752059]  0.00533619
 ```
 
 3. Semi-partial correlation on x
 
 ```julia-repl
-julia> pg.partial_corr(data=df, x='x', y='y',
-...                 x_covar=['cv1', 'cv2', 'cv3']).round(3)
-          n      r         CI95%     r2  adj_r2  p-val   BF10  power
-pearson  30  0.463  [0.12, 0.71]  0.215   0.156   0.01  5.404  0.752
-```
-
-4. Semi-partial on both x and y controlling for different variables
-
-```julia-repl
-julia> pg.partial_corr(data=df, x='x', y='y', x_covar='cv1',
-...                 y_covar=['cv2', 'cv3'], method='spearman').round(3)
-           n      r         CI95%     r2  adj_r2  p-val  power
-spearman  30  0.429  [0.08, 0.68]  0.184   0.123  0.018  0.676
+julia> partial_corr(df, x="x", y="y", x_covar=["cv1", "cv2", "cv3"])
+1×4 DataFrame
+ Row │ n      r         CI95                  p_val      
+     │ Int64  Float64   Array…                Float64    
+─────┼───────────────────────────────────────────────────
+   1 │    30  0.492601  [0.138516, 0.735022]  0.00904416
 ```
 """
 function partial_corr(data::DataFrame;
@@ -809,14 +803,20 @@ function partial_corr(data::DataFrame;
     alternative::String = "two-sided",
     method::String = "pearson")::DataFrame where {T<:Union{Nothing,String,Symbol}}
     # todo: multiple dispatch
+
+    @assert alternative in ["two-sided", "greater", "less"] "Alternative must be \"two-sided\",  \"greater\" or \"less\"."
+    @assert method in ["pearson", "spearman"] "Method must be \"pearson\" or \"spearman\" for partial correlation."
     @assert size(data)[1] > 2 "Data must have at least 3 samples."
+
     if (covar !== nothing) & (x_covar !== nothing || y_covar !== nothing)
         throw(DomainError([x_covar, y_covar], "Cannot specify both covar and {x,y}_covar."))
     end
+
     @assert x != covar "x and covar must be independant."
     @assert y != covar "y and covar must be independant."
     @assert x != y "x and y must be independant."
 
+    # todo: multiple dispatch
     if !isa(covar, Array)
         covar = [covar]
     end
@@ -835,48 +835,58 @@ function partial_corr(data::DataFrame;
 
     @assert all([Symbol(c) in propertynames(data) for c in col]) "columns are not in dataframe."
 
-    data = data[:, col]
     # Remove rows with NaNs
-    data = data[completecases(data), :]
-    @assert size(data)[1] > 2 "Data must have at least 3 non-NaN samples."
+    data = data[completecases(data), col]
+    n, k = size(data)
+    k -= 2
+    @assert n > 2 "Data must have at least 3 non-NaN samples."
 
-    # Standardize (= no need for an intercept in least-square regression)
-    C = (data .- mean.(eachcol(data))') ./ (std.(eachcol(data))')
-
-    if covar[1] !== nothing
-        # PARTIAL CORRELATION
-        cvar = convert(Matrix, C[:, covar])
-        β_x = qr(cvar, Val(true)) \ C[:, x]
-        β_y = qr(cvar, Val(true)) \ C[:, y]
-        if !isa(β_x, Array)
-            β_x = [β_x]
+    # Calculate the partial corrrelation matrix - similar to pingouin.pcorr()
+    if method == "spearman"
+        # Convert the data to rank, similar to R cov()
+        V = copy(data)
+        for c in col
+            transform!(V, c => (x -> tiedrank(x)) => c)
         end
-        if !isa(β_y, Array)
-            β_y = [β_y]
-        end
-        res_x = C[:, x] .- cvar .⋅ β_x'  # todo: wrong
-        res_y = C[:, y] .- cvar .⋅ β_y'
+        V = cov(Matrix(V))
     else
-        # SEMI-PARTIAL CORRELATION
-        # Initialize "fake" residuals
-        res_x, res_y = data[:, x], data[:, y]
-        if x_covar[1] !== nothing
-            cvar = convert(Matrix, C[:, x_covar])
-            β_x = qr(cvar, Val(true)) \ C[:, x]
-            if isa(β_x, Array)
-                β_x = β_x[1]
-            end
-            res_x = C[:, x] .- cvar .⋅ β_x
-        end
-        if y_covar[1] !== nothing
-            cvar = convert(Matrix, C[:, y_covar])
-            β_y = qr(cvar, Val(true)) \ C[:, y]
-            if isa(β_y, Array)
-                β_y = β_y[1]
-            end
-            res_y = C[:, y] .- cvar .⋅ β_y
+        V = cov(Matrix(data))
+    end
+
+    Vi = pinv(V) # Inverse covariance matrix
+    Vi_diag = diag(Vi)
+    D = diagm(sqrt.(1 ./ Vi_diag))
+    pcor = -1 .* (D * Vi * D) # Partial correlation matrix
+
+    if covar !== nothing
+        r = pcor[1, 2]
+    else
+        # Semi-partial correlation matrix
+        spcor = pcor ./ sqrt.(diag(V)) ./ sqrt.(abs.(Vi_diag .- Vi .^ 2 ./ Vi_diag))
+
+        if y_covar !== nothing
+            r = spcor[1, 2] # y_covar is removed from y
+        else
+            r = spcor[2, 1] # x_covar is removed from x
         end
     end
 
-    return corr(res_x[:, 1], res_y[:, 1], method = method, alternative = alternative)
+    if isnan(r)
+        # Correlation failed. Return NaN. When would this happen?
+        return DataFrame(n = n,
+            r = NaN,
+            CI95 = NaN,
+            p_val = NaN)
+    end
+
+    # Compute the two-sided p-value and confidence intervals
+    # https://online.stat.psu.edu/stat505/lesson/6/6.3
+    pval = _correl_pvalue(r, n, k, alternative = alternative)
+    # todo: alternative hypothesis in compute_esci
+    ci = compute_esci(stat = r, nx = (n - k), ny = (n - k), eftype = "r", decimals = 6)
+
+    return DataFrame(n = n,
+        r = r,
+        CI95 = [ci],
+        p_val = pval)
 end
