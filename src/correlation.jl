@@ -1,5 +1,6 @@
 include("bayesian.jl")
 include("effsize.jl")
+include("utils.jl")
 
 using DataFrames
 using Distributions
@@ -117,7 +118,7 @@ function skipped(x::Vector{<:Number},
     end
 
     @warn "Warning: p-value maybe different than expected."
-    pval = _correl_pvalue(r, nrows, 1, alternative = "two-sided")
+    pval = _correl_pvalue(r, nrows, 0, alternative = "two-sided")
 
     return r, pval, @. !idx
 end
@@ -206,9 +207,11 @@ Examples
 ```julia-repl
 julia> x = [0, 1, 2, 1, 0, 122, 1, 3, 5]
 julia> y = [1, 1, 3, 0, 0, 5, 1, 3, 4]
-julia> r, outliers = shepherd(x, y, n_boot=2000)
+julia> r, pval, outliers = shepherd(x, y, n_boot=2000);
 julia> r
-0.834411830506179
+0.88647133421903
+julia> pval
+0.0033537058539450776
 julia> outliers'
 1×9 Adjoint{Bool,BitArray{2}}:
  0  0  0  0  0  1  0  0  0
@@ -216,17 +219,19 @@ julia> outliers'
 """
 function shepherd(x::Array{<:Number},
     y::Array{<:Number};
-    n_boot::Int64 = 200)::Tuple{Float64,BitArray{2}}
+    n_boot::Int64 = 200)::Tuple{Float64,Float64,BitArray{2}}
     X = hcat(x, y)
     # Bootstrapping on Mahalanobis distance
     m = bsmahal(X, X, n_boot = n_boot)
     # Determine outliers
     outliers = (m .>= 6)
     # Compute correlation
-    # todo: add pvalue to return statement (waiting for HypothesisTests.jl commit)
     r = corspearman(x[findall(@. !outliers)], y[findall(@. !outliers)])
 
-    return r, outliers
+    @warn "Warning: p-value maybe different than expected."
+    pval = _correl_pvalue(r, size(X)[1], 0, alternative = "two-sided")
+
+    return r, pval, outliers
 end
 
 
@@ -380,24 +385,23 @@ function bicor(x::Array{<:Number},
     y_norm = (y .- y_median) .* w_y
     denom = (sqrt(sum(x_norm .^ 2)) * sqrt(sum(y_norm .^ 2)))
 
-    # Calculate r, t, and two-sided p-value
+    # Correlation coefficient
     r = sum(x_norm .* y_norm) / denom
-    tval = r * sqrt((nx - 2) / (1 - r^2))
-    pval = 2 * ccdf(TDist(nx - 2), abs(tval))
+    pval = _correl_pvalue(r, nx, 0, alternative = "two-sided")
 
     return r, pval
 end
 
 
 """
-    corr(x, y[, tail, method])
+    corr(x, y[, alternative, method, kwargs...])
 
 (Robust) correlation between two variables.
 
 Arguments
 ----------
 - `x, y::Array{<:Number}`: First and second set of observations. ``x`` and ``y`` must be independent.
-- `tail::String`: Specify whether to return `one-sided` or `two-sided` p-value. Note that the former are simply half the latter.
+- `alternative::String`: Defines the alternative hypothesis, or tail of the correlation. Must be one of "two-sided" (default), "greater" or "less". Both "greater" and "less" return a one-sided p-value. "greater" tests against the alternative hypothesis that the correlation is positive (greater than zero), "less" tests against the hypothesis that the correlation is negative.
 - `method::String`: Correlation type:
     * `pearson`: Pearson \$r\$ product-moment correlation
     * `spearman`: Spearman's \$\rho\$ rank-order correlation
@@ -405,6 +409,8 @@ Arguments
     * `bicor`: Biweight midcorrelation (robust)
     * `percbend`: Percentage bend correlation (robust)
     * `shepherd`: Shepherd's pi correlation (robust)
+    * `skipped`: Skipped correlation (robust)
+- `kwargs` (optional): Additional keyword arguments passed to the correlation function.
 
 Returns
 -------
@@ -479,6 +485,9 @@ bootstrapping of the Mahalanobis distance to identify outliers, while the
 skipped correlation is based on the minimum covariance determinant
 (which requires scikit-learn). Note that these two methods are
 significantly slower than the previous ones.
+
+The confidence intervals for the correlation coefficient are estimated
+using the Fisher transformation.
 
 **important: Please note that rows with missing values (NaN) will be automatically removed in a later version. For now, please remove them before calling the function.**
 
@@ -583,7 +592,7 @@ julia> Pingouin.corr(x, y, method="shepherd")
 7. One-tailed Pearson correlation
 
 ```julia-repl
-julia> Pingouin.corr(x, y, tail="one-sided", method="pearson")
+julia> Pingouin.corr(x, y, alternative="one-sided", method="pearson")
 ┌ Warning: P-Value not implemented yet in HypothesisTests.jl
 └ @ Main REPL[68]:11
 1×9 DataFrame
@@ -595,32 +604,48 @@ julia> Pingouin.corr(x, y, tail="one-sided", method="pearson")
 """
 function corr(x::Array{<:Number},
     y::Array{<:Number};
-    tail::String = "two-sided",
-    method::String = "pearson")
-    # todo: Remove rows with missing values
+    alternative::String = "two-sided",
+    method::String = "pearson",
+    kwargs...)
+
+    # Remove rows with missing values
+    x, y = remove_na(x, y, paired = true)
+
     # todo: update when p-values available in hypothesistests.jl
-    @assert tail in ["two-sided", "one-sided"] "Tail must be \"two-sided\" or \"one-sided\"."
+    @assert alternative in ["two-sided", "greater", "less"] "Alternative must be \"two-sided\",  \"greater\" or \"less\"."
 
     nx = size(x)[1]
-    r = pval = bf10 = outliers = pr = NaN
+    r = pval = bf10 = pr = NaN
+    outliers = 0
     # Compute correlation coefficient
     if method == "pearson"
         @warn "P-Value not implemented yet in HypothesisTests.jl"
         r = cor(x, y)
-        bf10 = bayesfactor_pearson(r, nx, tail = tail)
+        pval = _correl_pvalue(r, nx, 0, alternative = alternative)
+        bf10 = bayesfactor_pearson(r, nx, alternative = alternative)
     elseif method == "spearman"
         @warn "P-Value not implemented yet in HypothesisTests.jl"
         r = corspearman(x, y)
+        pval = _correl_pvalue(r, nx, 0, alternative = alternative)
     elseif method == "kendall"
         @warn "P-Value not implemented yet in HypothesisTests.jl"
         r = corkendall(x, y)
+        pval = _correl_pvalue(r, nx, 0, alternative = alternative)
     elseif method == "bicor"
-        r, pval = bicor(x, y)
+        c = get(kwargs, :c, 9.0)
+        r, pval = bicor(x, y, c = c)
     elseif method == "percbend"
-        r, pval = percbend(x, y)
+        β = get(kwargs, :β, 0.2)
+        r, pval = percbend(x, y, β = β)
     elseif method == "shepherd"
         @warn "P-Value not implemented yet in HypothesisTests.jl"
-        r, outliers = shepherd(x, y)
+        n_boot = get(kwargs, :n_boot, 200)
+        r, pval, outliers = shepherd(x, y, n_boot = n_boot)
+        outliers = sum(outliers)
+    elseif method == "skipped"
+        @warn "P-Value not implemented yet in HypothesisTests.jl"
+        corr_type = get(kwargs, :corr_type, "spearman")
+        r, pval, outliers = skipped(x, y, corr_type = corr_type)
         outliers = sum(outliers)
     else
         throw(DomainError(method, "Method not recognized."))
@@ -637,14 +662,27 @@ function corr(x::Array{<:Number},
             power = NaN)
     end
 
+    n_clean = n - outliers
+
+    if abs(r) == 1
+        ci = [r, r]
+        pr = 1
+    else
+        # Compute the parametric 95% confidence interval and power
+        # todo: update compute_esci with alternative
+        ci = compute_esci(stat = r, nx = n_clean, ny = n_clean, eftype = "r", decimals = 6)
+        # todo: implement power_corr
+        # pr = power_corr(r=r, n=nx, power=None, alpha=0.05, tail=tail)
+    end
+
     # Compute r2 and adj_r2
     r2 = r^2
-    adj_r2 = 1 - (((1 - r2) * (nx - 1)) / (nx - 3))
+    adj_r2 = 1 - (((1 - r2) * (n_clean - 1)) / (n_clean - 3))
 
-    # Compute the parametric 95% confidence interval and power
-    ci = compute_esci(stat = r, nx = nx, ny = nx, eftype = "r", decimals = 6)
-    # todo: implement power_corr
-    # pr = power_corr(r=r, n=nx, power=None, alpha=0.05, tail=tail)
+    # Recompute p-value if tail is one-sided
+    if alternative != "two-sided"
+        pval = _correl_pvalue(r, n_clean, 0, alternative = alternative)
+    end
 
     return DataFrame(n = nx,
         outliers = outliers,
@@ -659,7 +697,7 @@ end
 
 
 """
-    partial_corr(data, x, y, covar, x_covar, y_covar, tail, method)
+    partial_corr(data, x, y, covar, x_covar, y_covar, alternative, method)
 
 Partial and semi-partial correlation.
 
@@ -670,7 +708,7 @@ Arguments
 - `covar::Union{Array{String,1},String}`: Covariate(s). Must be a names of columns in `data`. Use a list if there are two or more covariates.
 - `x_covar::Union{Array{String,1},String}`: Covariate(s) for the `x` variable. This is used to compute semi-partial correlation (i.e. the effect of `x_covar` is removed from `x` but not from `y`). Note that you cannot specify both `covar` and `x_covar`.
 - `y_covar::Union{Array{String,1},String}`: Covariate(s) for the `y` variable. This is used to compute semi-partial correlation (i.e. the effect of `y_covar` is removed from `y` but not from `x`). Note that you cannot specify both `covar` and `y_covar`.
-- `tail::String`: Specify whether to return `"one-sided"` or `"two-sided"` p-value. Note that the former are simply half the latter.
+- `alternative::String`: Specify whether to return `"one-sided"` or `"two-sided"` p-value. Note that the former are simply half the latter.
 - `method::String`: Correlation type:
     * `"pearson"`: Pearson \$r\$ product-moment correlation
     * `"spearman"`: Spearman \$\rho\$ rank-order correlation
@@ -768,7 +806,7 @@ function partial_corr(data::DataFrame;
     covar::Union{Array{T,1},Nothing,String,Symbol} = nothing,
     x_covar::Union{Array{T,1},Nothing,String,Symbol} = nothing,
     y_covar::Union{Array{T,1},Nothing,String,Symbol} = nothing,
-    tail::String = "two-sided",
+    alternative::String = "two-sided",
     method::String = "pearson")::DataFrame where {T<:Union{Nothing,String,Symbol}}
     # todo: multiple dispatch
     @assert size(data)[1] > 2 "Data must have at least 3 samples."
@@ -840,5 +878,5 @@ function partial_corr(data::DataFrame;
         end
     end
 
-    return corr(res_x[:, 1], res_y[:, 1], method = method, tail = tail)
+    return corr(res_x[:, 1], res_y[:, 1], method = method, alternative = alternative)
 end
