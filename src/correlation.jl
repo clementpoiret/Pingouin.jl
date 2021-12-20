@@ -784,7 +784,7 @@ julia> Pingouin.partial_corr(df, x="x", y="y", covar=["cv1", "cv2", "cv3"], meth
 ```
 
 3. Semi-partial correlation on x
-
+# todo: verify against python
 ```julia-repl
 julia> partial_corr(df, x="x", y="y", x_covar=["cv1", "cv2", "cv3"])
 1×4 DataFrame
