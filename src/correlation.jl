@@ -1,5 +1,6 @@
 include("bayesian.jl")
 include("effsize.jl")
+include("power.jl")
 include("utils.jl")
 
 using DataFrames
@@ -521,24 +522,24 @@ julia> Pingouin.corr(x, y)
 ┌ Warning: P-Value not implemented yet in HypothesisTests.jl
 └ @ Main REPL[59]:11
 1×9 DataFrame
- Row │ n      outliers  r          CI95                  r2        adj_r2     p_val    BF10      power   
-     │ Int64  Float64   Float64    Array…                Float64   Float64    Float64  Float64   Float64 
-─────┼───────────────────────────────────────────────────────────────────────────────────────────────────
-   1 │     9      NaN   -0.299022  [-0.803566, 0.45557]  0.089414  -0.214115     NaN   0.533201     NaN
+ Row │ n      outliers  r          CI95                  r2        adj_r2     p_val     BF10      power    
+     │ Int64  Int64     Float64    Array…                Float64   Float64    Float64   Float64   Float64  
+─────┼─────────────────────────────────────────────────────────────────────────────────────────────────────
+   1 │     9         0  -0.299022  [-0.803566, 0.45557]  0.089414  -0.214115  0.434421  0.533201  0.124076
 ```
 
 2. Pearson correlation with two outliers
 
 ```julia-repl
-julia> x[3], y[5] = 12, -8
+julia> x[3], y[5] = 500, -470
 julia> Pingouin.corr(x, y)
 ┌ Warning: P-Value not implemented yet in HypothesisTests.jl
 └ @ Main REPL[59]:11
 1×9 DataFrame
- Row │ n      outliers  r           CI95                   r2          adj_r2    p_val    BF10      power   
-     │ Int64  Float64   Float64     Array…                 Float64     Float64   Float64  Float64   Float64 
-─────┼──────────────────────────────────────────────────────────────────────────────────────────────────────
-   1 │     9      NaN   -0.0410185  [-0.686441, 0.640553]  0.00168252  -0.33109     NaN   0.408345     NaN
+ Row │ n      outliers  r         CI95                   r2         adj_r2     p_val     BF10      power     
+     │ Int64  Int64     Float64   Array…                 Float64    Float64    Float64   Float64   Float64   
+─────┼───────────────────────────────────────────────────────────────────────────────────────────────────────
+   1 │     9         0  0.127003  [-0.586595, 0.729587]  0.0161297  -0.311827  0.744724  0.426023  0.0614084
 ```
 
 3. Spearman correlation (robust to outliers)
@@ -548,10 +549,10 @@ julia> Pingouin.corr(x, y, method="spearman")
 ┌ Warning: P-Value not implemented yet in HypothesisTests.jl
 └ @ Main REPL[68]:15
 1×9 DataFrame
- Row │ n      outliers  r           CI95                   r2          adj_r2     p_val    BF10     power   
-     │ Int64  Float64   Float64     Array…                 Float64     Float64    Float64  Float64  Float64 
-─────┼──────────────────────────────────────────────────────────────────────────────────────────────────────
-   1 │     9      NaN   -0.0423729  [-0.687157, 0.639752]  0.00179546  -0.330939     NaN      NaN      NaN
+ Row │ n      outliers  r           CI95                   r2          adj_r2     p_val     BF10     power     
+     │ Int64  Int64     Float64     Array…                 Float64     Float64    Float64   Float64  Float64   
+─────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────
+   1 │     9         0  -0.0423729  [-0.687157, 0.639752]  0.00179546  -0.330939  0.913808      NaN  0.0502253
 ```
 
 4. Biweight midcorrelation (robust)
@@ -559,10 +560,10 @@ julia> Pingouin.corr(x, y, method="spearman")
 ```julia-repl
 julia> Pingouin.corr(x, y, method="bicor")
 1×9 DataFrame
- Row │ n      outliers  r         CI95                  r2         adj_r2     p_val     BF10     power   
-     │ Int64  Float64   Float64   Array…                Float64    Float64    Float64   Float64  Float64 
-─────┼───────────────────────────────────────────────────────────────────────────────────────────────────
-   1 │     9      NaN   -0.28545  [-0.798245, 0.46725]  0.0814815  -0.224691  0.456539     NaN      NaN
+ Row │ n      outliers  r          CI95                  r2         adj_r2    p_val     BF10     power     
+     │ Int64  Int64     Float64    Array…                Float64    Float64   Float64   Float64  Float64   
+─────┼─────────────────────────────────────────────────────────────────────────────────────────────────────
+   1 │     9         0  -0.170727  [-0.74983, 0.556492]  0.0291476  -0.29447  0.660536      NaN  0.0718702
 ```
 
 5. Percentage bend correlation (robust)
@@ -570,10 +571,10 @@ julia> Pingouin.corr(x, y, method="bicor")
 ```julia-repl
 julia> Pingouin.corr(x, y, method="percbend")
 1×9 DataFrame
- Row │ n      outliers  r           CI95                   r2          adj_r2     p_val     BF10     power   
-     │ Int64  Float64   Float64     Array…                 Float64     Float64    Float64   Float64  Float64 
-─────┼───────────────────────────────────────────────────────────────────────────────────────────────────────
-   1 │     9      NaN   0.00520452  [-0.661203, 0.667021]  2.70871e-5  -0.333297  0.989398     NaN      NaN
+ Row │ n      outliers  r           CI95                   r2          adj_r2     p_val     BF10     power     
+     │ Int64  Int64     Float64     Array…                 Float64     Float64    Float64   Float64  Float64   
+─────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────
+   1 │     9         0  0.00520452  [-0.661203, 0.667021]  2.70871e-5  -0.333297  0.989398      NaN  0.0488702
 ```
 
 6. Shepherd's pi correlation (robust)
@@ -581,25 +582,27 @@ julia> Pingouin.corr(x, y, method="percbend")
 ```julia-repl
 julia> Pingouin.corr(x, y, method="shepherd")
 ┌ Warning: P-Value not implemented yet in HypothesisTests.jl
-└ @ Main REPL[68]:25
+└ @ Main ~/Sync/Projects/Julia/Pingouin/Pingouin.jl/src/correlation.jl:642
+┌ Warning: Warning: p-value maybe different than expected.
+└ @ Main ~/Sync/Projects/Julia/Pingouin/Pingouin.jl/src/correlation.jl:232
 1×9 DataFrame
- Row │ n      outliers  r           CI95                   r2          adj_r2     p_val    BF10     power   
-     │ Int64  Int64     Float64     Array…                 Float64     Float64    Float64  Float64  Float64 
+ Row │ n      outliers  r         CI95                   r2          adj_r2     p_val    BF10     power     
+     │ Int64  Int64     Float64   Array…                 Float64     Float64    Float64  Float64  Float64   
 ─────┼──────────────────────────────────────────────────────────────────────────────────────────────────────
-   1 │     9         0  -0.0423729  [-0.687157, 0.639752]  0.00179546  -0.330939     NaN      NaN      NaN
+   1 │     9         1  0.097561  [-0.651931, 0.750629]  0.00951814  -0.386675  0.80282      NaN  0.0562064
 ```
 
 7. One-tailed Pearson correlation
 
 ```julia-repl
-julia> Pingouin.corr(x, y, alternative="one-sided", method="pearson")
+julia> Pingouin.corr(x, y, alternative="greater", method="pearson")
 ┌ Warning: P-Value not implemented yet in HypothesisTests.jl
 └ @ Main REPL[68]:11
 1×9 DataFrame
- Row │ n      outliers  r           CI95                   r2          adj_r2    p_val    BF10      power   
-     │ Int64  Float64   Float64     Array…                 Float64     Float64   Float64  Float64   Float64 
-─────┼──────────────────────────────────────────────────────────────────────────────────────────────────────
-   1 │     9      NaN   -0.0410185  [-0.686441, 0.640553]  0.00168252  -0.33109     NaN   0.439293     NaN
+ Row │ n      outliers  r         CI95              r2         adj_r2     p_val     BF10      power     
+     │ Int64  Int64     Float64   Array…            Float64    Float64    Float64   Float64   Float64   
+─────┼──────────────────────────────────────────────────────────────────────────────────────────────────
+   1 │     9         0  0.127003  [-0.495871, 1.0]  0.0161297  -0.311827  0.372362  0.525049  0.0970358
 ```
 """
 function corr(x::Array{<:Number},
@@ -662,17 +665,20 @@ function corr(x::Array{<:Number},
             power = NaN)
     end
 
-    n_clean = n - outliers
+    n_clean = nx - outliers
 
     if abs(r) == 1
         ci = [r, r]
         pr = 1
     else
         # Compute the parametric 95% confidence interval and power
-        # todo: update compute_esci with alternative
-        ci = compute_esci(stat = r, nx = n_clean, ny = n_clean, eftype = "r", decimals = 6)
-        # todo: implement power_corr
-        # pr = power_corr(r=r, n=nx, power=None, alpha=0.05, tail=tail)
+        ci = compute_esci(stat = r,
+            nx = n_clean,
+            ny = n_clean,
+            eftype = "r",
+            decimals = 6,
+            alternative = alternative)
+        pr = power_corr(r, nx, nothing, 0.05, alternative = alternative)
     end
 
     # Compute r2 and adj_r2
@@ -882,8 +888,12 @@ function partial_corr(data::DataFrame;
     # Compute the two-sided p-value and confidence intervals
     # https://online.stat.psu.edu/stat505/lesson/6/6.3
     pval = _correl_pvalue(r, n, k, alternative = alternative)
-    # todo: alternative hypothesis in compute_esci
-    ci = compute_esci(stat = r, nx = (n - k), ny = (n - k), eftype = "r", decimals = 6)
+    ci = compute_esci(stat = r,
+        nx = (n - k),
+        ny = (n - k),
+        eftype = "r",
+        decimals = 6,
+        alternative = alternative)
 
     return DataFrame(n = n,
         r = r,

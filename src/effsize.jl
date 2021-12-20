@@ -6,14 +6,14 @@ using StatsBase
 
 function _check_eftype(eftype::String)::Bool
     return (eftype in ["none",
-                       "cohen",
-                       "hedges",
-                       "glass",
-                       "r",
-                       "eta-square",
-                       "odds-ratio",
-                       "auc",
-                       "cles"])
+        "cohen",
+        "hedges",
+        "glass",
+        "r",
+        "eta-square",
+        "odds-ratio",
+        "auc",
+        "cles"])
 end
 
 
@@ -145,10 +145,10 @@ julia> Pingouin.compute_effsize(y, x, eftype="cles")
 0.7142857142857143
 ```
 """
-function compute_effsize(x::Array{<:Number}, 
-                         y::Array{<:Number};
-                         paired::Bool=false,
-                         eftype::String="cohen")::Float64
+function compute_effsize(x::Array{<:Number},
+    y::Array{<:Number};
+    paired::Bool = false,
+    eftype::String = "cohen")::Float64
     # todo: add RBC and Matched-Pair RBC
     if !_check_eftype(eftype)
         throw(DomainError(eftype, "Invalid eftype."))
@@ -164,35 +164,35 @@ function compute_effsize(x::Array{<:Number},
     nx, ny = length(x), length(y)
 
     if ny == 1
-    # Case 1: One-sample Test
+        # Case 1: One-sample Test
         d = (mean(x) - mean(y)) / std(x)
         return d
     end
 
     if eftype == "glass"
-    # Find group with lowest variance
+        # Find group with lowest variance
         sd_control = minimum([std(x), std(y)])
         d = (mean(x) - mean(y)) / sd_control
         return d
     elseif eftype == "r"
-    # return correlation coefficient (useful for CI bootstrapping)
+        # return correlation coefficient (useful for CI bootstrapping)
         r = cor(x, y)
         return r
     elseif eftype == "cles"
-    # Compute exact CLES (see Pingouin.wilcoxon)
+        # Compute exact CLES (see Pingouin.wilcoxon)
         difference = x .- transpose(y)
-        return mean(ifelse.(difference .== 0, 0.5, (difference .> 0) * 1.))
+        return mean(ifelse.(difference .== 0, 0.5, (difference .> 0) * 1.0))
     else
-    # Test equality of variance of data with a stringent threshold
-    # equal_var, p = homoscedasticity(x, y, alpha=.001)
-    # if !equal_var
-    #     print("Unequal variances (p<.001). You should report",
-    #           "Glass delta instead.")
-    # end
+        # Test equality of variance of data with a stringent threshold
+        # equal_var, p = homoscedasticity(x, y, alpha=.001)
+        # if !equal_var
+        #     print("Unequal variances (p<.001). You should report",
+        #           "Glass delta instead.")
+        # end
 
-    # Compute unbiased Cohen's d effect size
+        # Compute unbiased Cohen's d effect size
         if !paired
-        # https://en.wikipedia.org/wiki/Effect_size
+            # https://en.wikipedia.org/wiki/Effect_size
             ddof = nx + ny - 2
             poolsd = sqrt(((nx - 1) * var(x) + (ny - 1) * var(y)) / ddof)
             d = (mean(x) - mean(y)) / poolsd
@@ -200,7 +200,7 @@ function compute_effsize(x::Array{<:Number},
             d = (mean(x) - mean(y)) / sqrt((var(x) + var(y)) / 2)
         end
 
-        return convert_effsize(d, "cohen", eftype, nx=nx, ny=ny)
+        return convert_effsize(d, "cohen", eftype, nx = nx, ny = ny)
     end
 end
 
@@ -306,10 +306,10 @@ julia> Pingouin.convert_effsize(d, "cohen", "r")
 ```
 """
 function convert_effsize(ef::Float64,
-                         input_type::String,
-                         output_type::String;
-                         nx::Union{Int64,Nothing}=nothing,
-                         ny::Union{Int64,Nothing}=nothing)::Float64
+    input_type::String,
+    output_type::String;
+    nx::Union{Int64,Nothing} = nothing,
+    ny::Union{Int64,Nothing} = nothing)::Float64
     for eftype in [input_type, output_type]
         if !_check_eftype(eftype)
             throw(DomainError(eftype, "Invalid eftype."))
@@ -341,7 +341,7 @@ function convert_effsize(ef::Float64,
         @warn "Returning original effect size instead of Glass because variance is not known."
         return ef
     elseif output_type == "r"
-    # McGrath and Meyer 2006
+        # McGrath and Meyer 2006
         if all([v !== nothing for v in [nx, ny]])
             a = ((nx + ny)^2 - 2 * (nx + ny)) / (nx * ny)
         else
@@ -349,10 +349,10 @@ function convert_effsize(ef::Float64,
         end
         return d / sqrt(d^2 + a)
     elseif output_type == "eta-square"
-    # Cohen 1988
+        # Cohen 1988
         return (d / 2)^2 / (1 + (d / 2)^2)
     elseif output_type == "odds-ratio"
-    # Borenstein et al. 2009
+        # Borenstein et al. 2009
         return exp(d * pi / sqrt(3))
     else # "auc"
         cdf(Normal(), (d / sqrt(2)))
@@ -410,10 +410,10 @@ julia> d = Pingouin.compute_effsize_from_t(tval, N=N, eftype="cohen")
 ```
 """
 function compute_effsize_from_t(tval::Float64;
-                                nx::Union{Int64,Nothing}=nothing,
-                                ny::Union{Int64,Nothing}=nothing,
-                                N::Union{Int64,Nothing}=nothing,
-                                eftype::String="cohen")::Float64
+    nx::Union{Int64,Nothing} = nothing,
+    ny::Union{Int64,Nothing} = nothing,
+    N::Union{Int64,Nothing} = nothing,
+    eftype::String = "cohen")::Float64
     if !_check_eftype(eftype)
         throw(DomainError(eftype, "Invalid eftype."))
     end
@@ -426,7 +426,7 @@ function compute_effsize_from_t(tval::Float64;
         throw(DomainError(eftype, "You must specify either nx and ny, or just N"))
     end
 
-    return convert_effsize(d, "cohen", eftype, nx=nx, ny=ny)
+    return convert_effsize(d, "cohen", eftype, nx = nx, ny = ny)
 end
 
 
@@ -444,6 +444,7 @@ Arguments
 - `eftype::String`: Effect size type. Must be `"r"` (correlation) or `"cohen"` (Cohen d or Hedges g).
 - `confidence::Float64`: Confidence level (0.95 = 95%)
 - `decimals::Int64`: Number of rounded decimals.
+- `alternative::String`: Defines the alternative hypothesis, or tail for the correlation coefficient. Must be one of "two-sided" (default), "greater" or "less". This parameter only has an effect if `eftype` is "r".
 
 Returns
 -------
@@ -534,22 +535,32 @@ julia> ci = Pingouin.compute_esci(stat=stat, nx=nx, ny=ny, eftype="cohen", decim
   1.045
 ```
 """
-function compute_esci(;stat::Union{Float64,Nothing}=nothing,
-                      nx::Union{Int64,Nothing}=nothing,
-                      ny::Union{Int64,Nothing}=nothing,
-                      paired::Bool=false,
-                      eftype::String="cohen",
-                      confidence::Float64=.95,
-                      decimals::Int64=2)::Array{Float64}
+function compute_esci(; stat::Union{Float64,Nothing} = nothing,
+    nx::Union{Int64,Nothing} = nothing,
+    ny::Union{Int64,Nothing} = nothing,
+    paired::Bool = false,
+    eftype::String = "cohen",
+    confidence::Float64 = 0.95,
+    decimals::Int64 = 2,
+    alternative::String = "two-sided")::Array{Float64}
     @assert eftype in ["r", "pearson", "spearman", "cohen", "d", "g", "hedges"]
     @assert (stat !== nothing) && (nx !== nothing)
     @assert 0 < confidence < 1
+    @assert alternative in ["two-sided", "greater", "less"] "alternative must be one of 'two-sided', 'greater' or 'less'"
 
     if eftype in ["r", "pearson", "spearman"]
         z = atanh(stat)
         se = 1 / sqrt(nx - 3)
-        crit = abs(quantile(Normal(), (1 - confidence) / 2))
-        ci_z = [z - crit * se, z + crit * se]
+        if alternative == "two-sided"
+            crit = abs(quantile(Normal(), (1 - confidence) / 2))
+            ci_z = [z - crit * se, z + crit * se]
+        elseif alternative == "greater"
+            crit = quantile(Normal(), confidence)
+            ci_z = [z - crit * se, Inf]
+        elseif alternative == "less"
+            crit = quantile(Normal(), confidence)
+            ci_z = [-Inf, z + crit * se]
+        end
         ci = tanh.(ci_z)
     else
         # Cohen d. Results are different than JASP which uses a non-central T
@@ -567,7 +578,7 @@ function compute_esci(;stat::Union{Float64,Nothing}=nothing,
         ci = [stat - crit * se, stat + crit * se]
     end
 
-    return round.(ci, digits=decimals)
+    return round.(ci, digits = decimals)
 end
 
 
@@ -681,15 +692,15 @@ julia> ci, bstat = Pingouin.compute_bootci(x, y=y, return_dist=true)
 ```
 """
 function compute_bootci(x::Array{<:Number};
-                        y::Union{Array{<:Number},Nothing}=nothing,
-                        func::Union{Function,String}="pearson",
-                        method::String="cper",
-                        paired::Bool=false,
-                        confidence::Float64=.95,
-                        n_boot::Int64=2000,
-                        decimals::Int64=2,
-                        seed::Union{Int64,Nothing}=nothing,
-                        return_dist::Bool=false)::Union{Array{<:Number},Tuple{Array{<:Number},Array{<:Number}}}
+    y::Union{Array{<:Number},Nothing} = nothing,
+    func::Union{Function,String} = "pearson",
+    method::String = "cper",
+    paired::Bool = false,
+    confidence::Float64 = 0.95,
+    n_boot::Int64 = 2000,
+    decimals::Int64 = 2,
+    seed::Union{Int64,Nothing} = nothing,
+    return_dist::Bool = false)::Union{Array{<:Number},Tuple{Array{<:Number},Array{<:Number}}}
     n = length(x)
     @assert n > 1
 
@@ -708,7 +719,7 @@ function compute_bootci(x::Array{<:Number};
         elseif func == "spearman"
             return corspearman
         elseif func in ["cohen", "hedges"]
-            return f(x, y) = compute_effsize(x, y, paired=paired, eftype=func)
+            return f(x, y) = compute_effsize(x, y, paired = paired, eftype = func)
         elseif func == "mean"
             return mean
         elseif func == "std"
@@ -728,12 +739,12 @@ function compute_bootci(x::Array{<:Number};
     if seed !== nothing
         Random.seed!(seed)
     end
-    bootsam = sample(1:n, (n, n_boot); replace=true, ordered=false)
+    bootsam = sample(1:n, (n, n_boot); replace = true, ordered = false)
     bootstat = Array{Float64,1}(undef, n_boot)
 
     if y !== nothing
         reference = func(x, y)
-        for i in 1:n_boot
+        for i = 1:n_boot
             # Note that here we use a bootstrapping procedure with replacement
             # of all the pairs (Xi, Yi). This is NOT suited for
             # hypothesis testing such as p-value estimation). Instead, for the
@@ -746,7 +757,7 @@ function compute_bootci(x::Array{<:Number};
         end
     else
         reference = func(x)
-        for i in 1:n_boot
+        for i = 1:n_boot
             bootstat[i] = func(x[bootsam[:, i]])
         end
     end
@@ -782,7 +793,7 @@ function compute_bootci(x::Array{<:Number};
         ci = [ll, ul]
     end
 
-    ci = round.(ci, digits=decimals)
+    ci = round.(ci, digits = decimals)
     if return_dist
         return ci, bootstat
     else
