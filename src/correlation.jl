@@ -900,3 +900,77 @@ function partial_corr(data::DataFrame;
         CI95 = [ci],
         p_val = pval)
 end
+
+"""
+    pcorr(data)
+
+Partial correlation matrix of a DataFrame.
+
+Arguments
+---------
+- `data::DataFrame`: DataFrame.
+
+Returns
+-------
+- `pcor_df::DataFrame`: Partial correlation matrix.
+
+Notes
+-----
+This function calculates the pairwise partial correlations for each pair of
+variables in a `DataFrame` given all the others. It has
+the same behavior as the pcor function in the
+https://cran.r-project.org/web/packages/ppcor/index.html R package.
+
+Note that this function only returns the raw Pearson correlation
+coefficient. If you want to calculate the test statistic and p-values, or
+use more robust estimates of the correlation coefficient, please refer to
+the `Pingouin.pairwise_corr` or `Pingouin.partial_corr`
+functions.
+
+Examples
+--------
+
+```julia-repl
+julia> using Pingouin
+julia> df = Pingouin.read_dataset("mediation");
+julia> pcor_df = Pingouin.pcorr(df);
+julia> pcor_df[!, 2:end] = round.(pcor_df[!, 2:end], digits=3);
+julia> pcor_df
+7×8 DataFrame
+ Row │ name    X        M        Y        Mbin     Ybin     W1       W2      
+     │ String  Float64  Float64  Float64  Float64  Float64  Float64  Float64 
+─────┼───────────────────────────────────────────────────────────────────────
+   1 │ X         1.0      0.359    0.074   -0.019   -0.147   -0.148   -0.067
+   2 │ M         0.359    1.0      0.555   -0.024   -0.112   -0.138   -0.176
+   3 │ Y         0.074    0.555    1.0     -0.001    0.169    0.101    0.108
+   4 │ Mbin     -0.019   -0.024   -0.001    1.0     -0.08    -0.032   -0.04
+   5 │ Ybin     -0.147   -0.112    0.169   -0.08     1.0     -0.0     -0.14
+   6 │ W1       -0.148   -0.138    0.101   -0.032   -0.0      1.0     -0.394
+   7 │ W2       -0.067   -0.176    0.108   -0.04    -0.14    -0.394    1.0
+```
+
+On a subset of columns
+
+```julia-repl
+julia> Pingouin.pcorr(df[!, [:X, :Y, :M]])
+3×4 DataFrame
+ Row │ name    X          Y          M        
+     │ String  Float64    Float64    Float64  
+─────┼────────────────────────────────────────
+   1 │ X       1.0        0.0366487  0.412804
+   2 │ Y       0.0366487  1.0        0.54014
+   3 │ M       0.412804   0.54014    1.0
+```
+"""
+function pcorr(data::DataFrame)::DataFrame
+    V = cov(Matrix(data))
+    Vi = pinv(V)
+    D = diagm(sqrt.(1 ./ diag(Vi)))
+    pcor = -1 .* (D * Vi * D)
+    pcor[diagind(pcor)] .= 1
+    pcor_df = DataFrame(pcor, propertynames(data))
+    # todo: when DataFrame will support row names, add them
+    insertcols!(pcor_df, 1, :name => names(data))
+
+    return pcor_df
+end
