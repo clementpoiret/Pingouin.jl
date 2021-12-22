@@ -14,7 +14,7 @@ Returns
 - `pval::Float64`: P-value.
 """
 function _perm_pval(bootstat::Vector{<:Number},
-    estimate::Number,
+    estimate::Number;
     alternative::String = "two-sided")::Float64
 
     @assert alternative in ["two-sided", "less", "greater"] "Alternative must be \"two-sided\", \"less\" or \"greater\"."

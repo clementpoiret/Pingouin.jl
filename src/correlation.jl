@@ -4,6 +4,7 @@ include("power.jl")
 include("utils.jl")
 
 using DataFrames
+using Distances
 using Distributions
 using Statistics
 using StatsBase
@@ -1053,4 +1054,152 @@ function rm_corr(data::DataFrame,
     dropmissing!(data)
 
     # todo: implement ancova
+end
+
+"""
+    distance_corr(x, y[, alternative, n_boot])
+
+Distance correlation between two arrays.
+
+Statistical significance (p-value) is evaluated with a permutation test.
+
+Arguments
+---------
+- `x, y::Array{<:Number}`: 1D or 2D input arrays, shape (n_samples, n_features). `x` and `y` must have the same number of samples and must not contain missing values.
+- `alternative::String`: Alternative of the test. Can be either "two-sided", "greater" (default) or "less". To be consistent with the original R implementation, the default is to calculate the one-sided "greater" p-value.
+- `n_boot::Union{Int,Nothing}`: Number of bootstrap to perform. If nothing, no bootstrapping is performed and the function only returns the distance correlation (no p-value). Default is 1000 (thus giving a precision of 0.001).
+
+Returns
+-------
+- `dcor::Float64`: Sample distance correlation (range from 0 to 1).
+- `pval::Float64`: P-value.
+
+Notes
+-----
+From Wikipedia:
+
+Distance correlation is a measure of dependence between two paired
+random vectors of arbitrary, not necessarily equal, dimension. The
+distance correlation coefficient is zero if and only if the random
+vectors are independent. Thus, distance correlation measures both
+linear and nonlinear association between two random variables or
+random vectors. This is in contrast to Pearson's correlation, which can
+only detect linear association between two random variables.
+
+The distance correlation of two random variables is obtained by
+dividing their distance covariance by the product of their distance
+standard deviations:
+
+``\\text{dCor}(X, Y) = \\frac{\\text{dCov}(X, Y)} {\\sqrt{\\text{dVar}(X) \\cdot \\text{dVar}(Y)}}``
+
+where ``\\text{dCov}(X, Y)`` is the square root of the arithmetic
+average of the product of the double-centered pairwise Euclidean distance
+matrices.
+
+Note that by contrast to Pearson's correlation, the distance correlation
+cannot be negative, i.e ``0 \\leq \\text{dCor} \\leq 1```.
+
+Results have been tested against the `energy https://cran.r-project.org/web/packages/energy/energy.pdf` R package.
+
+References
+----------
+
+* https://en.wikipedia.org/wiki/Distance_correlation
+
+* Székely, G. J., Rizzo, M. L., & Bakirov, N. K. (2007).
+    Measuring and testing dependence by correlation of distances.
+    The annals of statistics, 35(6), 2769-2794.
+
+* https://gist.github.com/satra/aa3d19a12b74e9ab7941
+
+* https://gist.github.com/wladston/c931b1495184fbb99bec
+
+Examples
+--------
+1. With two 1D vectors
+
+```julia-repl
+julia> using Pingouin
+julia> a = [1, 2, 3, 4, 5]
+julia> b = [1, 2, 9, 4, 4]
+julia> dcor, pval = distance_corr(a, b)
+(0.7626762424168667, 0.233)
+```
+
+2. With two 2D arrays and no p-value
+
+```julia-repl
+julia> using Pingouin
+julia> a = rand(10, 10);
+julia> b = rand(10, 10);
+julia> dcor, pval = distance_corr(a, b, n_boot=nothing)
+(0.9223515905902638, nothing)
+```
+"""
+function _dcorr(y::Matrix{<:Number},
+    n²::Int,
+    A::Matrix{<:Number},
+    dcov2_xx::Float64)
+
+    # Pairwise Euclidean distances
+    b = pairwise(Euclidean(), y, y, dims = 1)
+    # Double centering
+    B = b .- mean(b, dims = 1)[:, :] .- mean(b, dims = 2)[:, :] .+ mean(b)
+    # Compute squared distance covariances
+    dcov2_yy = dot(B, B) / n²
+    dcov2_xy = dot(A, B) / n²
+
+    return sqrt(dcov2_xy) / sqrt(sqrt(dcov2_xx) * sqrt(dcov2_yy))
+end
+function distance_corr(x::Vector{<:Number},
+    y::Vector{<:Number};
+    alternative::String = "greater",
+    n_boot::Union{Int,Nothing} = 1000)::Tuple{Float64,Union{Float64,Nothing}}
+
+    @assert alternative in ["two-sided", "greater", "less"] "`alternative` must be 'two-sided', 'greater' or 'less'."
+    # Check for NaN values
+    @assert all(@. !isnan(x)) & all(@. !isnan(y)) "`x` and `y` must not contain NaN values."
+    @assert length(x) == length(y) "`x` and `y` must have the same number of samples."
+
+    x = reshape(x, length(x), 1)
+    y = reshape(y, length(y), 1)
+
+    return distance_corr(x, y, alternative = alternative, n_boot = n_boot)
+end
+function distance_corr(x::Matrix{<:Number},
+    y::Matrix{<:Number};
+    alternative::String = "greater",
+    n_boot::Union{Int,Nothing} = 1000)::Tuple{Float64,Union{Float64,Nothing}}
+
+    @assert alternative in ["two-sided", "greater", "less"] "`alternative` must be 'two-sided', 'greater' or 'less'."
+    # Check for NaN values
+    @assert all(@. !isnan(x)) & all(@. !isnan(y)) "`x` and `y` must not contain NaN values."
+    @assert length(x) == length(y) "`x` and `y` must have the same number of samples."
+
+    n = size(x)[1]
+    n² = n^2
+
+    # Process first array to avoid redundancy when performing bootstrap
+    a = pairwise(Euclidean(), x, x, dims = 1)
+    A = a .- mean(a, dims = 1)[:, :] .- mean(a, dims = 2)[:, :] .+ mean(a)
+    dcov2_xx = dot(A, A) / n²
+
+    # Process second array and compute final distance correlation
+    dcor = _dcorr(y, n², A, dcov2_xx)
+
+    # Compute one-sided p-value using a bootstrap procedure
+    n_boot = n_boot === nothing ? 0 : n_boot
+    if n_boot > 1
+        bootsam = sample(1:n, (n_boot, n))
+        bootstat = Vector{Float64}(undef, n_boot)
+        for i = 1:n_boot
+            bootstat[i] = _dcorr(y[bootsam[i, :]][:, :], n², A, dcov2_xx)
+        end
+
+        pval = _perm_pval(bootstat, dcor, alternative = alternative)
+
+        return dcor, pval
+    else
+        return dcor, nothing
+    end
 end
