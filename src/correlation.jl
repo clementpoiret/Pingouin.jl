@@ -974,3 +974,83 @@ function pcorr(data::DataFrame)::DataFrame
 
     return pcor_df
 end
+
+"""
+    rm_corr(data, x, y, subject)
+
+Repeated measures correlation.
+
+Arguments
+---------
+- `data::Dataframe`.
+- `x, y::Union{String,Symbol}`: Name of columns in `data` containing the two dependent variables.
+- `subject::Union{String,Symbol}`: Name of column in `data` containing the subject indicator.
+
+Returns
+-------
+`stats::DataFrame`
+
+    * `"r"`: Repeated measures correlation coefficient
+    * `"dof"`: Degrees of freedom
+    * `"pval"`: p-value
+    * `"CI95"`: 95% parametric confidence intervals
+    * `"power"`: achieved power of the test (= 1 - type II error).
+
+See also
+--------
+[`plot_rm_corr`](@ref)
+
+Notes
+-----
+Repeated measures correlation (rmcorr) is a statistical technique for determining the common
+within-individual association for paired measures assessed on two or more occasions for
+multiple individuals.
+
+From `Bakdash and Marusich (2017) https://doi.org/10.3389/fpsyg.2017.00456:
+
+*Rmcorr accounts for non-independence among observations using analysis
+of covariance (ANCOVA) to statistically adjust for inter-individual
+variability. By removing measured variance between-participants,
+rmcorr provides the best linear fit for each participant using parallel
+regression lines (the same slope) with varying intercepts.
+Like a Pearson correlation coefficient, the rmcorr coefficient
+is bounded by − 1 to 1 and represents the strength of the linear
+association between two variables.*
+
+Results have been tested against the `rmcorr <https://github.com/cran/rmcorr>` R package.
+
+Missing values are automatically removed from the dataframe (listwise deletion).
+
+Examples
+--------
+
+```julia-repl
+julia> using Pingouin
+julia> df = Pingouin.read_dataset("rm_corr");
+julia> Pingouin.rm_corr(df, "x", "y", "subject")
+                r  dof      pval           CI95%     power
+rm_corr -0.50677   38  0.000847  [-0.71, -0.23]  0.929579
+```
+
+# todo: plot
+"""
+function rm_corr(data::DataFrame,
+    x::Union{String,Symbol},
+    y::Union{String,Symbol},
+    subject::Union{String,Symbol})
+
+    error("Not implemented yet")
+
+    @assert all([Symbol(c) in propertynames(data) for c in [x, y, subject]]) "columns are not in dataframe."
+    @assert all([eltype(data[!, c]) <: Number for c in [x, y]]) "columns must be numeric."
+    @assert length(unique(data[!, subject])) > 3 "subject column must contain at least 3 unique subjects."
+
+    data = data[!, [x, y, subject]]
+    # Remove missing values
+    allowmissing!(data)
+    foreach(c -> replace!(c, NaN => missing), eachcol(data))
+    foreach(c -> replace!(c, nothing => missing), eachcol(data))
+    dropmissing!(data)
+
+    # todo: implement ancova
+end
