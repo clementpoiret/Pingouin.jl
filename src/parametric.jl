@@ -271,8 +271,27 @@ function ttest(x::Vector{<:Number},
 
     ci_name = "CI$(Int(confidence*100))%"
 
-    # todo: Achieved power
-    power = NaN
+    # Achieved power
+    if ny == 1
+        # One-sample
+        power = power_ttest(d, nx, nothing, 0.05, contrast = "one-sample", tail = tail)
+    end
+
+    if ny > 1 && paired
+        # Paired two-samples
+        power = power_ttest(d, nx, nothing, 0.05, contrast = "paired", tail = tail)
+    elseif ny > 1 && !paired
+        # Independant two-samples
+        if nx == ny
+            # Equal sample sizes
+            power = power_ttest(d, nx, nothing, 0.05, tail = tail)
+        else
+            # Unequal sample sizes
+            # todo
+            @warn "Unequal sample sizes. Not yet implemented."
+            power = NaN
+        end
+    end
 
     # Bayes factor
     bf = bayesfactor_ttest(tval, nx, ny,
