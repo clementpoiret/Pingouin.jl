@@ -274,8 +274,11 @@ function ttest(x::Vector{<:Number},
     # todo: Achieved power
     power = NaN
 
-    # todo: Updated bf ttest with two-sided as symbols
-    bf = NaN
+    # Bayes factor
+    bf = bayesfactor_ttest(tval, nx, ny,
+        paired = paired,
+        tail = tail,
+        r = r)
 
     return DataFrame("dof" => ddof,
         "T" => tval,
