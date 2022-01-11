@@ -110,95 +110,158 @@ Examples
 --------
 1. One-sample T-test.
 
->>> from pingouin import ttest
->>> x = [5.5, 2.4, 6.8, 9.6, 4.2]
->>> ttest(x, 4).round(2)
-            T  dof alternative  p-val         CI95%  cohen-d   BF10  power
-T-test  1.4    4   two-sided   0.23  [2.32, 9.08]     0.62  0.766   0.19
+```julia-repl
+julia> import Pingouin.ttest
+julia> x = [5.5, 2.4, 6.8, 9.6, 4.2]
+julia> ttest(x, 4)
+1×8 DataFrame
+ Row │ dof    T        p-val     tail    cohen's d  CI95%               power     BF10     
+     │ Int64  Float64  Float64   Symbol  Float64    Array…              Float64   Float64  
+─────┼─────────────────────────────────────────────────────────────────────────────────────
+   1 │     4  1.39739  0.234824  both     0.624932  [2.32231, 9.07769]  0.191796  0.766047
+```
 
 2. One sided paired T-test.
 
->>> pre = [5.5, 2.4, 6.8, 9.6, 4.2]
->>> post = [6.4, 3.4, 6.4, 11., 4.8]
->>> ttest(pre, post, paired=True, alternative='less').round(2)
-            T  dof alternative  p-val          CI95%  cohen-d   BF10  power
-T-test -2.31    4        less   0.04  [-inf, -0.05]     0.25  3.122   0.12
+```julia-repl
+julia> pre = [5.5, 2.4, 6.8, 9.6, 4.2]
+julia> post = [6.4, 3.4, 6.4, 11., 4.8]
+julia> ttest(pre, post, paired=true, tail=:left)
+1×8 DataFrame
+ Row │ dof    T         p-val     tail    cohen's d  CI95%               power    BF10    
+     │ Int64  Float64   Float64   Symbol  Float64    Array…              Float64  Float64 
+─────┼────────────────────────────────────────────────────────────────────────────────────
+   1 │     4  -2.30783  0.041114  left     0.250801  [-Inf, -0.0533789]  0.12048  3.12204
 
-Now testing the opposite alternative hypothesis
 
->>> ttest(pre, post, paired=True, alternative='greater').round(2)
-            T  dof alternative  p-val         CI95%  cohen-d  BF10  power
-T-test -2.31    4     greater   0.96  [-1.35, inf]     0.25  0.32   0.02
+# Now testing the opposite alternative hypothesis
+julia> ttest(pre, post, paired=true, tail=:right)
+1×8 DataFrame
+ Row │ dof    T         p-val     tail    cohen's d  CI95%            power      BF10     
+     │ Int64  Float64   Float64   Symbol  Float64    Array…           Float64    Float64  
+─────┼────────────────────────────────────────────────────────────────────────────────────
+   1 │     4  -2.30783  0.958886  right    0.250801  [-1.34662, Inf]  0.0168646  0.320303
+```
 
 3. Paired T-test with missing values.
 
->>> import numpy as np
->>> pre = [5.5, 2.4, np.nan, 9.6, 4.2]
->>> post = [6.4, 3.4, 6.4, 11., 4.8]
->>> ttest(pre, post, paired=True).round(3)
-            T  dof alternative  p-val          CI95%  cohen-d   BF10  power
-T-test -5.902    3   two-sided   0.01  [-1.5, -0.45]    0.306  7.169  0.073
-
-Compare with SciPy
-
->>> from scipy.stats import ttest_rel
->>> np.round(ttest_rel(pre, post, nan_policy="omit"), 3)
-array([-5.902,  0.01 ])
+```julia-repl
+julia> pre = [5.5, 2.4, NaN, 9.6, 4.2]
+julia> post = [6.4, 3.4, 6.4, 11., 4.8]
+julia> ttest(pre, post, paired=true)
+1×8 DataFrame
+ Row │ dof    T         p-val       tail    cohen's d  CI95%                  power      BF10    
+     │ Int64  Float64   Float64     Symbol  Float64    Array…                 Float64    Float64 
+─────┼───────────────────────────────────────────────────────────────────────────────────────────
+   1 │     3  -5.90187  0.00971277  both     0.306268  [-1.50075, -0.449254]  0.0729667  7.16912
+```
 
 4. Independent two-sample T-test with equal sample size.
 
->>> np.random.seed(123)
->>> x = np.random.normal(loc=7, size=20)
->>> y = np.random.normal(loc=4, size=20)
->>> ttest(x, y)
-                T  dof alternative         p-val         CI95%   cohen-d       BF10  power
-T-test  9.106452   38   two-sided  4.306971e-11  [2.64, 4.15]  2.879713  1.366e+08    1.0
+```julia-repl
+julia> using Random
+julia> x = rand(Float64, 20) .+ 5
+julia> y = rand(Float64, 20) .+ 4
+julia> ttest(x, y)
+1×8 DataFrame
+ Row │ dof    T        p-val        tail    cohen's d  CI95%                power    BF10       
+     │ Int64  Float64  Float64      Symbol  Float64    Array…               Float64  Float64    
+─────┼──────────────────────────────────────────────────────────────────────────────────────────
+   1 │    38  11.3107  9.99425e-14  both      3.57675  [0.856537, 1.22998]      1.0  4.27574e10
+```
 
 5. Independent two-sample T-test with unequal sample size. A Welch's T-test is used.
 
->>> np.random.seed(123)
->>> y = np.random.normal(loc=6.5, size=15)
->>> ttest(x, y)
-                T        dof alternative     p-val          CI95%   cohen-d   BF10     power
-T-test  1.996537  31.567592   two-sided  0.054561  [-0.02, 1.65]  0.673518  1.469  0.481867
+```julia-repl
+julia> y = rand(Float64, 15) .+ 4
+julia> ttest(x, y)
+1×8 DataFrame
+ Row │ dof      T        p-val        tail    cohen's d  CI95%              power    BF10      
+     │ Float64  Float64  Float64      Symbol  Float64    Array…             Float64  Float64   
+─────┼─────────────────────────────────────────────────────────────────────────────────────────
+   1 │ 29.7616  11.0515  4.69414e-12  both       3.7929  [0.9018, 1.31082]      1.0  3.68389e9
+```
 
 6. However, the Welch's correction can be disabled:
 
->>> ttest(x, y, correction=False)
-                T  dof alternative     p-val          CI95%   cohen-d   BF10     power
-T-test  1.971859   33   two-sided  0.057056  [-0.03, 1.66]  0.673518  1.418  0.481867
-
-Compare with SciPy
-
->>> from scipy.stats import ttest_ind
->>> np.round(ttest_ind(x, y, equal_var=True), 6)  # T value and p-value
-array([1.971859, 0.057056])
+```julia-repl
+julia> ttest(x, y, correction=false)
+1×8 DataFrame
+ Row │ dof    T        p-val        tail    cohen's d  CI95%              power    BF10      
+     │ Int64  Float64  Float64      Symbol  Float64    Array…             Float64  Float64   
+─────┼───────────────────────────────────────────────────────────────────────────────────────
+   1 │    33  11.1045  1.10246e-12  both       3.7929  [0.903617, 1.309]      1.0  4.14836e9
+```
 """
 function ttest(x::Vector{<:Number},
-    y::Float64;
+    y::Real;
     paired::Bool = false,
-    tail::String = :both,
-    correction::String = "auto",
-    r::Float64 = 0.707,
-    confidence::Float64 = 0.95)::DataFrame
-
-    ttest(x, [y],
-        paired = paired,
-        tail = tail,
-        correction = correction,
-        r = r,
-        confidence = confidence)
-end
-function ttest(x::Vector{<:Number},
-    y::Vector{<:Number};
-    paired::Bool = false,
-    tail::String = :both,
-    correction::Union{Bool,String} = "auto",
+    tail::Symbol = :both,
     r::Float64 = 0.707,
     confidence::Float64 = 0.95)::DataFrame
 
     @assert tail in [:both, :left, :right] "Tail must be one of :both (default), :left or :right."
 
+    x = remove_na(x)
+    nx = length(x)
+
+    # Case one sample T-test
+    test = OneSampleTTest(x, y)
+    tval = test.t
+    pval = pvalue(test, tail = tail)
+    ddof = test.df
+    se = test.stderr
+
+    # Effect size
+    d = compute_effsize(x, [y], paired = paired, eftype = "cohen")
+
+    # Confidence interval for the (difference in) means
+    # Compare to the t.test r function
+    if tail == :both
+        α = 1 - confidence
+        conf = 1 - α / 2
+    else
+        conf = confidence
+    end
+    tcrit = quantile(TDist(ddof), conf)
+    ci = [tval - tcrit, tval + tcrit] .* se
+    ci .+= y
+
+    if tail == :right
+        ci[2] = Inf
+    elseif tail == :left
+        ci[1] = -Inf
+    end
+
+    ci_name = "CI$(Int(confidence*100))%"
+
+    # One-sample
+    power = power_ttest(d, nx, nothing, 0.05, contrast = "one-sample", tail = tail)
+
+    # Bayes factor
+    bf = bayesfactor_ttest(tval,
+        nx,
+        tail = tail,
+        r = r)
+
+    return DataFrame("dof" => ddof,
+        "T" => tval,
+        "p-val" => pval,
+        "tail" => tail,
+        "cohen's d" => abs(d),
+        ci_name => [ci],
+        "power" => power,
+        "BF10" => bf)
+end
+function ttest(x::Vector{<:Number},
+    y::Vector{<:Number};
+    paired::Bool = false,
+    tail::Symbol = :both,
+    correction::Union{Bool,String} = "auto",
+    r::Float64 = 0.707,
+    confidence::Float64 = 0.95)::DataFrame
+
+    @assert tail in [:both, :left, :right] "Tail must be one of :both (default), :left or :right."
 
     if (size(x) != size(y)) & paired
         throw(DomainError("Paired t-test requires equal sample sizes"))
@@ -210,14 +273,10 @@ function ttest(x::Vector{<:Number},
 
     if ny == 1
         # Case one sample T-test
-        test = OneSampleTTest(x, y)
-        tval = test.t
-        pval = pvalue(test, tail = tail)
-        ddof = test.df
-        se = test.stderr
+        ttest(x, y[1], paired = paired, tail = tail, r = r, confidence = confidence)
     end
 
-    if ny > 1 & paired
+    if ny > 1 && paired
         # Case paired two samples T-test
         # Do not compute if two arrays are identical
         if x == y
@@ -233,7 +292,7 @@ function ttest(x::Vector{<:Number},
         end
     elseif ny > 1 & !paired
         # Case unpaired two samples T-test
-        if ((correction == true) | (correction == "auto")) & (nx != ny)
+        if (correction == true) || (correction == "auto" && nx != ny)
             # Use the Welch separate variance T-test
             test = UnequalVarianceTTest(x, y)
             # ddof are approximated using Welch–Satterthwaite equation            
@@ -259,9 +318,6 @@ function ttest(x::Vector{<:Number},
     end
     tcrit = quantile(TDist(ddof), conf)
     ci = [tval - tcrit, tval + tcrit] .* se
-    if ny == 1
-        ci .+= y
-    end
 
     if tail == :right
         ci[2] = Inf
@@ -272,11 +328,6 @@ function ttest(x::Vector{<:Number},
     ci_name = "CI$(Int(confidence*100))%"
 
     # Achieved power
-    if ny == 1
-        # One-sample
-        power = power_ttest(d, nx, nothing, 0.05, contrast = "one-sample", tail = tail)
-    end
-
     if ny > 1 && paired
         # Paired two-samples
         power = power_ttest(d, nx, nothing, 0.05, contrast = "paired", tail = tail)
@@ -287,9 +338,7 @@ function ttest(x::Vector{<:Number},
             power = power_ttest(d, nx, nothing, 0.05, tail = tail)
         else
             # Unequal sample sizes
-            # todo
-            @warn "Unequal sample sizes. Not yet implemented."
-            power = NaN
+            power = power_ttest2n(nx, ny, d, nothing, 0.05, tail = tail)
         end
     end
 
