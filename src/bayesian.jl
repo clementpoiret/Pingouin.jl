@@ -284,11 +284,11 @@ Bayes Factor of a T-test.
 
 Arguments
 ----------
-- `t::Float64`: T-value of the T-test
+- `t::Real`: T-value of the T-test
 - `nx::Int64`: Sample size of first group
 - `ny::Int64`: Sample size of second group (only needed in case of an independent two-sample T-test)
 - `paired::Bool`: boolean Specify whether the two observations are related (i.e. repeated measures) or independent.
-- `tail::String`: string Specify whether the test is `'one-sided'` or `'two-sided'`. Can also be `'greater'` or `'less'` to specify the direction of the test.
+- `tail::Symbol`: Defines the alternative hypothesis, or tail of the test. Must be one of `:both` (default), `:left`, or `:right`.
 **WARNING**: One-sided Bayes Factor (BF) are simply obtained by
 doubling the two-sided BF, which is not exactly the same behavior
 as R or JASP. Be extra careful when interpretating one-sided BF,
@@ -350,7 +350,7 @@ Bayes Factor: 17.185 (two-sample paired)
 3. Bayes Factor of an one-sided one-sample T-test
 
 ```julia-repl
-julia> bf = Pingouin.bayesfactor_ttest(3.5, 20, tail="one-sided")
+julia> bf = Pingouin.bayesfactor_ttest(3.5, 20, tail=:right)
 julia> print("Bayes Factor: ", round.(bf, digits=3), " (one-sample)")
 Bayes Factor: 34.369 (one-sample)
 ```
@@ -359,21 +359,21 @@ Bayes Factor: 34.369 (one-sample)
 
 ```julia-repl
 julia> tval = -3.5
-julia> bf_greater = Pingouin.bayesfactor_ttest(tval, 20, tail="greater")
-julia> bf_less = Pingouin.bayesfactor_ttest(tval, 20, tail="less")
+julia> bf_greater = Pingouin.bayesfactor_ttest(tval, 20, tail=:right)
+julia> bf_less = Pingouin.bayesfactor_ttest(tval, 20, tail=:left)
 julia> print("BF10-greater: ", round.(bf_greater, digits=3), " | BF10-less: ", round.(bf_less, digits=3))
 BF10-greater: 0.029 | BF10-less: 34.369
 ```
 """
-function bayesfactor_ttest(t::Float64,
+function bayesfactor_ttest(t::Real,
     nx::Int64,
     ny::Union{Int64,Nothing} = nothing;
     paired::Bool = false,
-    tail::String = "two-sided",
+    tail::Symbol = :both,
     r::Float64 = 0.707)::Float64
     # Check tails
-    possible_tails = ["two-sided", "one-sided", "greater", "less"]
-    @assert(tail in possible_tails, "Invalid tail argument.")
+    possible_tails = [:both, :left, :right]
+    @assert tail in possible_tails "Invalid tail argument."
     if ny === nothing || ny == 1
         one_sample = true
     else
@@ -381,14 +381,13 @@ function bayesfactor_ttest(t::Float64,
     end
 
     # Check T-value
-    @assert(isa(t, Int64) || isa(t, Float64), "The T-value must be a int or a float.")
     if !isfinite(t)
         return NaN
     end
 
     # Function to be integrated
     function f(g, t, n, r, df)
-        return (1 + n * g * r^2)^(-.5) * (1 + t^2 / ((1 + n * g * r^2) * df))^(-(df + 1) / 2) * (2 * π)^(-.5) * g^(-3.0 / 2) * exp(-1 / (2 * g))
+        return (1 + n * g * r^2)^(-0.5) * (1 + t^2 / ((1 + n * g * r^2) * df))^(-(df + 1) / 2) * (2 * π)^(-0.5) * g^(-3.0 / 2) * exp(-1 / (2 * g))
     end
 
     # Define n and degrees of freedom
@@ -405,18 +404,12 @@ function bayesfactor_ttest(t::Float64,
     bf10 = 1 / ((1 + t^2 / df)^(-(df + 1) / 2) / integr)
 
     # Tail
-    if tail == "two-sided"
-        tail_binary = "two-sided"
-    else
-        tail_binary = "one-sided"
-    end
-
-    if tail_binary == "one-sided"
-        bf10 = bf10 * (1 / 0.5)
-    end
+    tail_binary = tail == :both ? :both : :one_sided
+    bf10 = tail_binary == :one_sided ? bf10 * (1 / 0.5) : bf10
     # Now check the direction of the test
-    if ((tail == "greater" && t < 0) || (tail == "less" && t > 0)) && bf10 > 1
+    if ((tail == :right && t < 0) || (tail == :left && t > 0)) && bf10 > 1
         bf10 = 1 / bf10
     end
+
     return bf10
 end
