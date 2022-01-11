@@ -118,7 +118,7 @@ function _get_f_power_ttest(tail::Symbol,
     tside::Int64)::Function
 
     if tail == :both
-        return function _two_sided(d::Float64,
+        return function _two_sided_ttest(d::Float64,
             n::Real,
             α::Float64)::Float64
 
@@ -129,7 +129,7 @@ function _get_f_power_ttest(tail::Symbol,
             return ccdf(NoncentralT(ddof, nc), tcrit) + cdf(NoncentralT(ddof, nc), -tcrit)
         end
     elseif tail == :right
-        return function _greater(d::Float64,
+        return function _greater_ttest(d::Float64,
             n::Real,
             α::Float64)::Float64
 
@@ -140,7 +140,7 @@ function _get_f_power_ttest(tail::Symbol,
             return ccdf(NoncentralT(ddof, nc), tcrit)
         end
     elseif tail == :left
-        return function _less(d::Float64,
+        return function _less_ttest(d::Float64,
             n::Real,
             α::Float64)::Float64
 
@@ -247,6 +247,198 @@ end
 
 
 """
+    power_ttest2n(nx, ny, d, power, α[, contrast, tail])
+
+Evaluate power, effect size or  significance level of an independent two-samples T-test with unequal sample sizes.
+
+Arguments
+---------
+- `nx, ny::Int64`: Sample sizes, must be specified. If the sample sizes are equal, you should use the [`power_ttest`](@ref) function.
+- `d::Float64`: Cohen d effect size
+- `power::Float64`: Test power (= 1 - type II error).
+- `α::Float64`: Significance level (type I error probability). The default is 0.05.
+- `contrast::String`: Can be `"one-sample"`, `"two-samples"` or `"paired"`. Note that `"one-sample"` and `"paired"` have the same behavior.
+- `tail::Symbol`: Defines the alternative hypothesis, or tail of the test. Must be one of :both (default), :right or :left.
+
+Notes
+-----
+Exactly ONE of the parameters `d`, `power` and `α` must
+be passed as Nothing, and that parameter is determined from the others.
+
+Notice that `α` has a default value of 0.05 so Nothing must be
+explicitly passed if you want to compute it.
+
+This function is a Python adaptation of the `pwr.t2n.test`
+function implemented in the
+`pwr <https://cran.r-project.org/web/packages/pwr/pwr.pdf>` R package.
+
+Statistical power is the likelihood that a study will
+detect an effect when there is an effect there to be detected.
+A high statistical power means that there is a low probability of
+concluding that there is no effect when there is one.
+Statistical power is mainly affected by the effect size and the sample
+size.
+
+The first step is to use the Cohen's d to calculate the non-centrality
+parameter ``\\delta`` and degrees of freedom ``v``.
+In case of paired groups, this is:
+
+\$\\delta = d * \\sqrt n\$
+\$v = n - 1\$
+
+and in case of independent groups with equal sample sizes:
+
+\$\\delta = d * \\sqrt{\\frac{n}{2}}\$
+\$v = (n - 1) * 2\$
+
+where ``d`` is the Cohen d and ``n`` the sample size.
+
+The critical value is then found using the percent point function of the T
+distribution with ``q = 1 - α`` and ``v``
+degrees of freedom.
+
+Finally, the power of the test is given by the survival function of the
+non-central distribution using the previously calculated critical value,
+degrees of freedom and non-centrality parameter.
+
+`brenth` is used to solve power equations for other
+variables (i.e. sample size, effect size, or significance level). If the
+solving fails, a nan value is returned.
+
+Results have been tested against GPower and the
+`pwr <https://cran.r-project.org/web/packages/pwr/pwr.pdf>` R package.
+
+Examples
+--------
+1. Compute achieved power of a T-test given ``d``, ``n`` and ``\\alpha``
+
+```julia-repl
+julia> using Pingouin
+julia> Pingouin.power_ttest2n(20, 15, 0.5, nothing, 0.05, tail=:right)
+0.41641558972125337
+```
+
+2. Compute achieved ``d`` given ``n``, ``power`` and ``\\alpha`` level
+
+```julia-repl
+julia> Pingouin.power_ttest2n(20, 15, nothing, 0.80, 0.05)
+0.9859223315621992
+```
+
+3. Compute achieved alpha level given ``d``, ``n`` and ``power``
+
+```julia-repl
+julia> Pingouin.power_ttest2n(20, 15, 0.5, 0.80, nothing)
+0.4999843253701041
+```
+"""
+function _get_f_power_ttest2n(tail::Symbol,
+    tside::Int64)::Function
+
+    if tail == :both
+        return function _two_sided_ttest2n(d::Float64,
+            nx::Real,
+            ny::Real,
+            α::Float64)::Float64
+
+            ddof = nx + ny - 2
+            nc = d * (1 / sqrt(1 / nx + 1 / ny))
+            tcrit = quantile(TDist(ddof), 1 - α / tside)
+
+            return ccdf(NoncentralT(ddof, nc), tcrit) + cdf(NoncentralT(ddof, nc), -tcrit)
+        end
+    elseif tail == :right
+        return function _greater_ttest2n(d::Float64,
+            nx::Real,
+            ny::Real,
+            α::Float64)::Float64
+
+            ddof = nx + ny - 2
+            nc = d * (1 / sqrt(1 / nx + 1 / ny))
+            tcrit = quantile(TDist(ddof), 1 - α / tside)
+
+            return ccdf(NoncentralT(ddof, nc), tcrit)
+        end
+    elseif tail == :left
+        return function _less_ttest2n(d::Float64,
+            nx::Real,
+            ny::Real,
+            α::Float64)::Float64
+
+            ddof = nx + ny - 2
+            nc = d * (1 / sqrt(1 / nx + 1 / ny))
+            tcrit = quantile(TDist(ddof), α / tside)
+            return cdf(NoncentralT(ddof, nc), tcrit)
+        end
+    end
+end
+# Finds α
+function power_ttest2n(nx::Int64,
+    ny::Int64,
+    d::Float64,
+    power::Float64,
+    α::Nothing;
+    tail::Symbol = :both)::Float64
+
+    @assert tail in [:both, :left, :right] "Tail must be one of :both (default), :left or :right."
+    tside = tail == :both ? 2 : 1
+    if tside == 2
+        d = abs(d)
+    end
+    @assert 0 < power <= 1
+
+    # Compute achieved α (significance) level given d, n and power
+    _find_α(α) = _get_f_power_ttest2n(tail, tside)(d, nx, ny, α) - power
+
+    return fzero(_find_α, (1e-10, 1 - 1e-10), Roots.Brent())
+end
+# Finds power
+function power_ttest2n(nx::Int64,
+    ny::Int64,
+    d::Float64,
+    power::Nothing,
+    α::Float64;
+    tail::Symbol = :both)::Float64
+
+    @assert tail in [:both, :left, :right] "Tail must be one of :both (default), :left or :right."
+    tside = tail == :both ? 2 : 1
+    if tside == 2
+        d = abs(d)
+    end
+    @assert 0 < α <= 1
+
+    # Compute achieved power given d, n and α
+    return _get_f_power_ttest2n(tail, tside)(d, nx, ny, α)
+end
+# Finds d
+function power_ttest2n(nx::Int64,
+    ny::Int64,
+    d::Nothing,
+    power::Float64,
+    α::Float64;
+    tail::Symbol = :both)::Float64
+
+    @assert tail in [:both, :left, :right] "Tail must be one of :both (default), :left or :right."
+    tside = tail == :both ? 2 : 1
+    @assert 0 < α <= 1
+    @assert 0 < power <= 1
+
+    # Compute achieved d given sample size, power and α level
+    _find_d(d) = _get_f_power_ttest2n(tail, tside)(d, nx, ny, α) - power
+
+    if tail == :both
+        b0, b1 = 1e-07, 10
+    elseif tail == :left
+        b0, b1 = -10, 5
+    elseif tail == :right
+        b0, b1 = -5, 10
+    end
+
+    return fzero(_find_d, (b0, b1), Roots.Brent())
+end
+
+
+"""
     power_corr(r, n, power, α[, alternative])
 
 Evaluate power, sample size, correlation coefficient or
@@ -322,7 +514,7 @@ julia> α = Pingouin.power_corr(0.5, 20, 0.8, nothing)
 function _get_f_power_corr(alternative::String)::Function
 
     if alternative == "two-sided"
-        return function _two_sided(r::Float64,
+        return function _two_sided_corr(r::Float64,
             n::Real,
             α::Float64)::Float64
 
@@ -336,7 +528,7 @@ function _get_f_power_corr(alternative::String)::Function
             return power
         end
     elseif alternative == "greater"
-        return function _greater(r::Float64,
+        return function _greater_corr(r::Float64,
             n::Real,
             α::Float64)::Float64
 
@@ -350,7 +542,7 @@ function _get_f_power_corr(alternative::String)::Function
             return power
         end
     elseif alternative == "less"
-        return function _less(r::Float64,
+        return function _less_corr(r::Float64,
             n::Real,
             α::Float64)::Float64
 
