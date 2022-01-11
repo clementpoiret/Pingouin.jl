@@ -2,6 +2,251 @@ using Distributions
 using Roots
 
 """
+    power_ttest(d, n, power, α[, contrast, tail])
+
+Evaluate power, sample size, effect size or significance level of a one-sample T-test,
+a paired T-test or an independent two-samples T-test with equal sample sizes.
+
+Arguments
+---------
+- `d::Float64`: Cohen d effect size
+- `n::Int64`: Sample size. In case of a two-sample T-test, sample sizes are assumed to be equal. Otherwise, see the [`power_ttest2n`](@ref) function.
+- `power::Float64`: Test power (= 1 - type II error).
+- `α::Float64`: Significance level (type I error probability). The default is 0.05.
+- `contrast::String`: Can be `"one-sample"`, `"two-samples"` or `"paired"`. Note that `"one-sample"` and `"paired"` have the same behavior.
+- `tail::Symbol`: Defines the alternative hypothesis, or tail of the test. Must be one of :both (default), :right or :left.
+
+Notes
+-----
+Exactly ONE of the parameters `d`, `n`, `power` and `α` must
+be passed as Nothing, and that parameter is determined from the others.
+
+For a paired T-test, the sample size `n` corresponds to the number of
+pairs. For an independent two-sample T-test with equal sample sizes, `n`
+corresponds to the sample size of each group (i.e. number of observations
+in one group). If the sample sizes are unequal, please use the
+[`power_ttest2n`](@ref) function instead.
+
+Notice that `α` has a default value of 0.05 so Nothing must be
+explicitly passed if you want to compute it.
+
+This function is a Python adaptation of the `pwr.t.test`
+function implemented in the
+`pwr <https://cran.r-project.org/web/packages/pwr/pwr.pdf>` R package.
+
+Statistical power is the likelihood that a study will
+detect an effect when there is an effect there to be detected.
+A high statistical power means that there is a low probability of
+concluding that there is no effect when there is one.
+Statistical power is mainly affected by the effect size and the sample
+size.
+
+The first step is to use the Cohen's d to calculate the non-centrality
+parameter ``\\delta`` and degrees of freedom ``v``.
+In case of paired groups, this is:
+
+\$\\delta = d * \\sqrt n\$
+\$v = n - 1\$
+
+and in case of independent groups with equal sample sizes:
+
+\$\\delta = d * \\sqrt{\\frac{n}{2}}\$
+\$v = (n - 1) * 2\$
+
+where ``d`` is the Cohen d and ``n`` the sample size.
+
+The critical value is then found using the percent point function of the T
+distribution with ``q = 1 - α`` and ``v``
+degrees of freedom.
+
+Finally, the power of the test is given by the survival function of the
+non-central distribution using the previously calculated critical value,
+degrees of freedom and non-centrality parameter.
+
+`brenth` is used to solve power equations for other
+variables (i.e. sample size, effect size, or significance level). If the
+solving fails, a nan value is returned.
+
+Results have been tested against GPower and the
+`pwr <https://cran.r-project.org/web/packages/pwr/pwr.pdf>` R package.
+
+Examples
+--------
+1. Compute power of a one-sample T-test given ``d``, ``n`` and ``\\alpha``
+
+```julia-repl
+julia> using Pingouin
+julia> Pingouin.power_ttest(0.5, 20, nothing, 0.05, contrast="one-sample")
+0.5645044184390837
+```
+
+2. Compute required sample size given ``d``, ``power`` and ``\\alpha``
+
+```julia-repl
+julia> Pingouin.power_ttest(0.5, nothing, 0.80, 0.05, tail=:right)
+50.15078338685538
+```
+
+3. Compute achieved ``d`` given ``n``, ``power`` and ``\\alpha`` level
+
+```julia-repl
+julia> Pingouin.power_ttest(nothing, 20, 0.80, 0.05, contrast="paired")
+0.6604416546228311
+```
+
+4. Compute achieved alpha level given ``d``, ``n`` and ``power``
+
+```julia-repl
+julia> Pingouin.power_ttest(0.5, 20, 0.80, nothing)
+0.4430167658448699
+```
+
+5. One-sided tests
+
+```julia-repl
+julia> Pingouin.power_ttest(0.5, 20, nothing, 0.05, tail=:right)
+0.4633743492964484
+```
+
+```julia-repl
+julia> Pingouin.power_ttest(0.5, 20, nothing, 0.05, tail=:left)
+0.0006909466675597553
+```
+"""
+function _get_f_power_ttest(tail::Symbol,
+    tsample::Int64,
+    tside::Int64)::Function
+
+    if tail == :both
+        return function _two_sided(d::Float64,
+            n::Real,
+            α::Float64)::Float64
+
+            ddof = (n - 1) * tsample
+            nc = d * sqrt(n / tsample)
+            tcrit = quantile(TDist(ddof), 1 - α / tside)
+
+            return ccdf(NoncentralT(ddof, nc), tcrit) + cdf(NoncentralT(ddof, nc), -tcrit)
+        end
+    elseif tail == :right
+        return function _greater(d::Float64,
+            n::Real,
+            α::Float64)::Float64
+
+            ddof = (n - 1) * tsample
+            nc = d * sqrt(n / tsample)
+            tcrit = quantile(TDist(ddof), 1 - α / tside)
+
+            return ccdf(NoncentralT(ddof, nc), tcrit)
+        end
+    elseif tail == :left
+        return function _less(d::Float64,
+            n::Real,
+            α::Float64)::Float64
+
+            ddof = (n - 1) * tsample
+            nc = d * sqrt(n / tsample)
+            tcrit = quantile(TDist(ddof), α / tside)
+            return cdf(NoncentralT(ddof, nc), tcrit)
+        end
+    end
+end
+# Finds α
+function power_ttest(d::Float64,
+    n::Int64,
+    power::Float64,
+    α::Nothing;
+    contrast::String = "two-samples",
+    tail::Symbol = :both)::Float64
+
+    @assert tail in [:both, :left, :right] "Tail must be one of :both (default), :left or :right."
+    @assert contrast in ["one-sample", "two-samples", "paired"] "Contrast must be one of 'one-sample', 'two-samples' or 'paired'."
+    tsample = contrast == "two-samples" ? 2 : 1
+    tside = tail == :both ? 2 : 1
+    if tside == 2
+        d = abs(d)
+    end
+    @assert 0 < power <= 1
+
+    # Compute achieved α (significance) level given d, n and power
+    _find_α(α) = _get_f_power_ttest(tail, tsample, tside)(d, n, α) - power
+
+    return fzero(_find_α, (1e-10, 1 - 1e-10), Roots.Brent())
+end
+# Finds power
+function power_ttest(d::Float64,
+    n::Int64,
+    power::Nothing,
+    α::Float64;
+    contrast::String = "two-samples",
+    tail::Symbol = :both)::Float64
+
+    @assert tail in [:both, :left, :right] "Tail must be one of :both (default), :left or :right."
+    @assert contrast in ["one-sample", "two-samples", "paired"] "Contrast must be one of 'one-sample', 'two-samples' or 'paired'."
+    tsample = contrast == "two-samples" ? 2 : 1
+    tside = tail == :both ? 2 : 1
+    if tside == 2
+        d = abs(d)
+    end
+    @assert 0 < α <= 1
+
+    # Compute achieved power given d, n and α
+    return _get_f_power_ttest(tail, tsample, tside)(d, n, α)
+end
+# Finds n
+function power_ttest(d::Float64,
+    n::Nothing,
+    power::Float64,
+    α::Float64;
+    contrast::String = "two-samples",
+    tail::Symbol = :both)::Float64
+
+    @assert tail in [:both, :left, :right] "Tail must be one of :both (default), :left or :right."
+    @assert contrast in ["one-sample", "two-samples", "paired"] "Contrast must be one of 'one-sample', 'two-samples' or 'paired'."
+    tsample = contrast == "two-samples" ? 2 : 1
+    tside = tail == :both ? 2 : 1
+    if tside == 2
+        d = abs(d)
+    end
+    @assert 0 < α <= 1
+    @assert 0 < power <= 1
+
+    # Compute required sample size given d, power and α
+    _find_n(n) = _get_f_power_ttest(tail, tsample, tside)(d, n, α) - power
+
+    return fzero(_find_n, (2 + 1e-10, 1e+07), Roots.Brent())
+end
+# Finds d
+function power_ttest(d::Nothing,
+    n::Int64,
+    power::Float64,
+    α::Float64;
+    contrast::String = "two-samples",
+    tail::Symbol = :both)::Float64
+
+    @assert tail in [:both, :left, :right] "Tail must be one of :both (default), :left or :right."
+    @assert contrast in ["one-sample", "two-samples", "paired"] "Contrast must be one of 'one-sample', 'two-samples' or 'paired'."
+    tsample = contrast == "two-samples" ? 2 : 1
+    tside = tail == :both ? 2 : 1
+    @assert 0 < α <= 1
+    @assert 0 < power <= 1
+
+    # Compute achieved d given sample size, power and α level
+    _find_d(d) = _get_f_power_ttest(tail, tsample, tside)(d, n, α) - power
+
+    if tail == :both
+        b0, b1 = 1e-07, 10
+    elseif tail == :left
+        b0, b1 = -10, 5
+    elseif tail == :right
+        b0, b1 = -5, 10
+    end
+
+    return fzero(_find_d, (b0, b1), Roots.Brent())
+end
+
+
+"""
     power_corr(r, n, power, α[, alternative])
 
 Evaluate power, sample size, correlation coefficient or
