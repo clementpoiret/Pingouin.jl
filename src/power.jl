@@ -563,7 +563,7 @@ function power_corr(r::Float64,
     n::Real,
     power::Float64,
     α::Nothing;
-    tail:::Symbol = :both)::Float64
+    tail::Symbol = :both)::Float64
 
     @assert tail in [:both, :left, :right] "`tail` must be :both, :left, or :right."
     @assert -1 <= r <= 1 "Correlation coefficient must be between -1 and 1."
