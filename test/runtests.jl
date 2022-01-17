@@ -75,7 +75,7 @@ end
     @test bf ≈ 10.633616334136537
 
     bf = Pingouin.bayesfactor_pearson(r, n,
-        alternative = "two-sided",
+        tail = :both,
         method = "wetzels",
         kappa = 1.0)
     @test bf ≈ 8.221440974059899
