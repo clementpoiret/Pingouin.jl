@@ -99,7 +99,7 @@ end
 
 
 """
-    bayesfactor_pearson(r, n[, alternative, method, kappa])
+    bayesfactor_pearson(r, n[, tail, method, kappa])
 
 Bayes Factor of a Pearson correlation.
 
@@ -107,7 +107,7 @@ Arguments
 ----------
 - `r::Float64`: Pearson correlation coefficient.
 - `n::Int64`: Sample size.
-- `alternative::String`: Alternative hypothesis. Can be *'two-sided'*, *'one-sided'*, *'greater'* or *'less'*. *'greater'* corresponds to a positive correlation, *'less'* to a negative correlation. If *'one-sided'*, the directionality is inferred based on the ``r`` value (= *'greater'* if ``r`` > 0, *'less'* if ``r`` < 0).
+- `tail::Symbol`: Alternative hypothesis. Can be *:both*, *:left*, *:right* or *:onesided*. *:right* corresponds to a positive correlation, *:left* to a negative correlation. If *:onesided*, the directionality is inferred based on the ``r`` value (= :right if ``r`` > 0, :left if ``r`` < 0).
 - `method::String`: Method to compute the Bayes Factor. Can be *'ly'* (default) or *'wetzels'*. The former has an exact analytical solution, while the latter requires integral solving (and is therefore slower). *'wetzels'* was the default in Pingouin <= 0.2.5. See Notes for details.
 - `kappa::Float64`: Kappa factor. This is sometimes called the *rscale* parameter, and
 is only used when ``method`` is *'ly'*.
@@ -174,7 +174,7 @@ Compare to Wetzels method:
 
 ```julia-repl
 julia> bf = Pingouin.bayesfactor_pearson(r, n,
-                                    alternative="two-sided",
+                                    tail=:both,
                                     method="wetzels",
                                     kappa=1.)
 julia> print("Bayes Factor: ", round.(bf, digits=3))
@@ -185,32 +185,32 @@ One-sided test
 
 ```julia-repl
 julia> bf10pos = Pingouin.bayesfactor_pearson(r, n, 
-                                         alternative="one-sided",
+                                         tail=:onesided,
                                          method="ly",
                                          kappa=1.0)
 julia> bf10neg = Pingouin.bayesfactor_pearson(r, n,
-                                         alternative="less",
+                                         tail=:left,
                                          method="ly",
                                          kappa=1.0)
 julia> print("BF-pos: ", round.(bf10pos, digits=3)," BF-neg: ", round.(bf10neg, digits=3))
 BF-pos: 21.185, BF-neg: 0.082
 ```
 
-We can also only pass `alternative='one-sided'` and Pingouin will automatically
+We can also only pass `tail=:onesided` and Pingouin will automatically
 infer the directionality of the test based on the ``r`` value.
 
 ```julia-repl
-julia> print("BF: ", round.(Pingouin.bayesfactor_pearson(r, n, alternative="one-sided"), digits=3))
+julia> print("BF: ", round.(Pingouin.bayesfactor_pearson(r, n, tail=:onesided), digits=3))
 BF: 21.185
 ```
 """
 function bayesfactor_pearson(r::Float64,
     n::Int64;
-    alternative::String = "two-sided",
+    tail::Symbol = :both,
     method::String = "ly",
     kappa::Float64 = 1.0)::Float64
     @assert(lowercase(method) in ["ly", "wetzels"], "Method not recognized.")
-    @assert(lowercase(alternative) in ["two-sided", "one-sided", "greater", "less", "g", "l", "positive", "negative", "pos", "neg"])
+    @assert(tail in [:both, :onesided, :right, :left])
 
     # Wrong input
     if !isfinite(r) || n < 2
@@ -219,7 +219,7 @@ function bayesfactor_pearson(r::Float64,
 
     @assert(-1 <= r <= 1, "r must be between -1 and 1.")
 
-    if lowercase(alternative) != "two-sided" && lowercase(method) == "wetzels"
+    if tail != :both && lowercase(method) == "wetzels"
         @warn "One-sided Bayes Factor are not supported by the Wetzels's method. Switching to method='ly'."
         method = "ly"
     end
@@ -248,7 +248,7 @@ function bayesfactor_pearson(r::Float64,
                    loggamma((n + 2 / k - 1) / 2) - loggamma((n + 2 / k) / 2) +
                    log_hyperterm)
 
-        if lowercase(alternative) != "two-sided"
+        if tail != :both
             # Directional test.
             # We need mpmath for the generalized hypergeometric function
             hyper_term = float(_₃F₂(1, n / 2, n / 2, 3 / 2, (2 + k * (n + 1)) / (2 * k), r^2))
@@ -257,14 +257,14 @@ function bayesfactor_pearson(r::Float64,
 
             bf10neg = bf10 - C
             bf10pos = 2 * bf10 - bf10neg
-            if lowercase(alternative) in ["one-sided"]
+            if tail == :onesided
                 # Automatically find the directionality of the test based on r
                 if r >= 0
                     bf10 = bf10pos
                 else
                     bf10 = bf10neg
                 end
-            elseif lowercase(alternative) in ["greater", "g", "positive", "pos"]
+            elseif tail == :right
                 # We expect the correlation to be positive
                 bf10 = bf10pos
             else
