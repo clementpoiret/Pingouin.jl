@@ -439,7 +439,7 @@ end
 
 
 """
-    power_corr(r, n, power, α[, alternative])
+    power_corr(r, n, power, α[, tail])
 
 Evaluate power, sample size, correlation coefficient or
 significance level of a correlation test.
@@ -450,7 +450,7 @@ Arguments
 - `n::Real`: Sample size.
 - `power::Float64`: Test power (= 1 - type II error).
 - `α::Float64`: Significance level (type I error probability). Defaults to 0.05.
-- `alternative::String`: Defines the alternative hypothesis, or tail of the correlation. Must be one of "two-sided" (default), "greater" or "less". Both "greater" and "less" return a one-sided p-value. "greater" tests against the alternative hypothesis that the correlation is positive (greater than zero), "less" tests against the hypothesis that the correlation is negative.
+- `tail::Symbol`: Defines the alternative hypothesis, or tail of the correlation. Must be one of :both (default), :left or :right. Both :left and :right return a one-sided p-value. :right tests against the alternative hypothesis that the correlation is positive (greater than zero), :left tests against the hypothesis that the correlation is negative.
 
 Notes
 -----
@@ -482,9 +482,9 @@ julia> power
 2. Same but one-sided test
 
 ```julia-repl
-julia> Pingouin.power_corr(0.5, 20, nothing, 0.05, alternative="greater")
+julia> Pingouin.power_corr(0.5, 20, nothing, 0.05, tail=:right)
 0.7509872964018015
-julia> Pingouin.power_corr(0.5, 20, nothing, 0.05, alternative="less")
+julia> Pingouin.power_corr(0.5, 20, nothing, 0.05, tail=:left)
 3.738124767341007e-5
 ```
 
@@ -511,9 +511,9 @@ julia> α = Pingouin.power_corr(0.5, 20, 0.8, nothing)
 0.13774641452888606
 ```
 """
-function _get_f_power_corr(alternative::String)::Function
+function _get_f_power_corr(tail::Symbol)::Function
 
-    if alternative == "two-sided"
+    if tail == :both
         return function _two_sided_corr(r::Float64,
             n::Real,
             α::Float64)::Float64
@@ -527,7 +527,7 @@ function _get_f_power_corr(alternative::String)::Function
 
             return power
         end
-    elseif alternative == "greater"
+    elseif tail == :right
         return function _greater_corr(r::Float64,
             n::Real,
             α::Float64)::Float64
@@ -541,7 +541,7 @@ function _get_f_power_corr(alternative::String)::Function
 
             return power
         end
-    elseif alternative == "less"
+    elseif tail == :left
         return function _less_corr(r::Float64,
             n::Real,
             α::Float64)::Float64
@@ -563,11 +563,11 @@ function power_corr(r::Float64,
     n::Real,
     power::Float64,
     α::Nothing;
-    alternative::String = "two-sided")::Float64
+    tail:::Symbol = :both)::Float64
 
-    @assert alternative in ["two-sided", "greater", "less"] "Alternative must be one of 'two-sided' (default), 'greater' or 'less'."
+    @assert tail in [:both, :left, :right] "`tail` must be :both, :left, or :right."
     @assert -1 <= r <= 1 "Correlation coefficient must be between -1 and 1."
-    if alternative == "two-sided"
+    if tail == :both
         r = abs(r)
     end
     @assert 0 < power <= 1 "Power must be between 0 and 1."
@@ -577,7 +577,7 @@ function power_corr(r::Float64,
     end
 
     # Compute achieved alpha (significance) level given r, n and power
-    _find_α(α) = _get_f_power_corr(alternative)(r, n, α) - power
+    _find_α(α) = _get_f_power_corr(tail)(r, n, α) - power
 
     return fzero(_find_α, (1e-10, 1 - 1e-10), Roots.Brent())
 end
@@ -586,11 +586,11 @@ function power_corr(r::Float64,
     n::Real,
     power::Nothing,
     α::Float64 = 0.05;
-    alternative::String = "two-sided")::Float64
+    tail::Symbol = :both)::Float64
 
-    @assert alternative in ["two-sided", "greater", "less"] "Alternative must be one of 'two-sided' (default), 'greater' or 'less'."
+    @assert tail in [:both, :left, :right] "`tail` must be :both, :left, or :right."
     @assert -1 <= r <= 1 "Correlation coefficient must be between -1 and 1."
-    if alternative == "two-sided"
+    if tail == :both
         r = abs(r)
     end
     @assert 0 < α <= 1 "Significance level must be between 0 and 1."
@@ -600,25 +600,25 @@ function power_corr(r::Float64,
     end
 
     # Compute achieved power given r, n and alpha
-    return _get_f_power_corr(alternative)(r, n, α)
+    return _get_f_power_corr(tail)(r, n, α)
 end
 # Finds n
 function power_corr(r::Float64,
     n::Nothing,
     power::Float64,
     α::Float64 = 0.05;
-    alternative::String = "two-sided")::Float64
+    tail::Symbol = :both)::Float64
 
-    @assert alternative in ["two-sided", "greater", "less"] "Alternative must be one of 'two-sided' (default), 'greater' or 'less'."
+    @assert tail in [:both, :left, :right] "`tail` must be :both, :left, or :right."
     @assert -1 <= r <= 1 "Correlation coefficient must be between -1 and 1."
-    if alternative == "two-sided"
+    if tail == :both
         r = abs(r)
     end
     @assert 0 < α <= 1 "Significance level must be between 0 and 1."
     @assert 0 < power <= 1 "Power must be between 0 and 1."
 
     # Compute required sample size given r, power and alpha
-    _find_n(n) = _get_f_power_corr(alternative)(r, n, α) - power
+    _find_n(n) = _get_f_power_corr(tail)(r, n, α) - power
 
     return fzero(_find_n, (4 + 1e-10, 1e+09), Roots.Brent())
 end
@@ -627,9 +627,9 @@ function power_corr(r::Nothing,
     n::Real,
     power::Float64,
     α::Float64 = 0.05;
-    alternative::String = "two-sided")::Float64
+    tail::Symbol = :both)::Float64
 
-    @assert alternative in ["two-sided", "greater", "less"] "Alternative must be one of 'two-sided' (default), 'greater' or 'less'."
+    @assert tail in [:both, :left, :right] "`tail` must be :both, :left, or :right."
     @assert 0 < α <= 1 "Significance level must be between 0 and 1."
     @assert 0 < power <= 1 "Power must be between 0 and 1."
     if n <= 4
@@ -638,9 +638,9 @@ function power_corr(r::Nothing,
     end
 
     # Compute achieved r given sample size, power and α level
-    _find_r(r) = _get_f_power_corr(alternative)(r, n, α) - power
+    _find_r(r) = _get_f_power_corr(tail)(r, n, α) - power
 
-    if alternative == "two-sided"
+    if tail == :both
         return fzero(_find_r, (1e-10, 1 - 1e-10), Roots.Brent())
     else
         return fzero(_find_r, (-1 + 1e-10, 1 - 1e-10), Roots.Brent())

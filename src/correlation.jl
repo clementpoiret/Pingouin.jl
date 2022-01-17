@@ -12,7 +12,7 @@ using LinearAlgebra
 using LinRegOutliers
 
 """
-    _correl_pvalue(r, n[, k, alternative])
+    _correl_pvalue(r, n[, k, tail])
 
 Compute the p-value of a correlation coefficient.
 
@@ -25,7 +25,7 @@ Arguments
 - `r::Float64`: Correlation coefficient.
 - `n::Int64`: Sample size.
 - `k::Int64`: Number of covariates for (semi)-partial correlation.
-- `alternative::String`: Tail of the test.
+- `tail::Symbol`: Tail of the test.
 
 Returns
 -------
@@ -39,20 +39,20 @@ the p-value (i.e. using a beta distribution)
 function _correl_pvalue(r::Float64,
     n::Int64,
     k::Int64 = 0;
-    alternative::String = "two-sided")::Float64
+    tail::Symbol = :both)::Float64
 
-    @assert alternative in ["two-sided", "less", "greater"] "Alternative must be one of \"two-sided\" (default), \"greater\" or \"less\"."
+    @assert tail in [:both, :left, :right] "Tail must be one of :both (default), :left or :right."
 
     # Method using a student T distribution
     ddof = n - k - 2
     tval = r * sqrt(ddof / (1 - r^2))
 
 
-    if alternative == "less"
+    if tail == :left
         pval = cdf(TDist(ddof), tval)
-    elseif alternative == "greater"
+    elseif tail == :right
         pval = ccdf(TDist(ddof), tval)
-    elseif alternative == "two-sided"
+    elseif tail == :both
         pval = 2 * ccdf(TDist(ddof), abs(tval))
     end
 
@@ -120,7 +120,7 @@ function skipped(x::Vector{<:Number},
     end
 
     @warn "Warning: p-value maybe different than expected."
-    pval = _correl_pvalue(r, nrows, 0, alternative = "two-sided")
+    pval = _correl_pvalue(r, nrows, 0, tail = :both)
 
     return r, pval, @. !idx
 end
@@ -231,7 +231,7 @@ function shepherd(x::Array{<:Number},
     r = corspearman(x[findall(@. !outliers)], y[findall(@. !outliers)])
 
     @warn "Warning: p-value maybe different than expected."
-    pval = _correl_pvalue(r, size(X)[1], 0, alternative = "two-sided")
+    pval = _correl_pvalue(r, size(X)[1], 0, tail = :both)
 
     return r, pval, outliers
 end
@@ -389,21 +389,21 @@ function bicor(x::Array{<:Number},
 
     # Correlation coefficient
     r = sum(x_norm .* y_norm) / denom
-    pval = _correl_pvalue(r, nx, 0, alternative = "two-sided")
+    pval = _correl_pvalue(r, nx, 0, tail = :both)
 
     return r, pval
 end
 
 
 """
-    corr(x, y[, alternative, method, kwargs...])
+    corr(x, y[, tail, method, kwargs...])
 
 (Robust) correlation between two variables.
 
 Arguments
 ----------
 - `x, y::Array{<:Number}`: First and second set of observations. ``x`` and ``y`` must be independent.
-- `alternative::String`: Defines the alternative hypothesis, or tail of the correlation. Must be one of "two-sided" (default), "greater" or "less". Both "greater" and "less" return a one-sided p-value. "greater" tests against the alternative hypothesis that the correlation is positive (greater than zero), "less" tests against the hypothesis that the correlation is negative.
+- `tail::Symbol`: Defines the alternative hypothesis, or tail of the correlation. Must be one of :both (default), :right or :left. Both :right and :left return a one-sided p-value. :right tests against the alternative hypothesis that the correlation is positive (greater than zero), :left tests against the hypothesis that the correlation is negative.
 - `method::String`: Correlation type:
     * `pearson`: Pearson \$r\$ product-moment correlation
     * `spearman`: Spearman's \$\rho\$ rank-order correlation
@@ -596,7 +596,7 @@ julia> Pingouin.corr(x, y, method="shepherd")
 7. One-tailed Pearson correlation
 
 ```julia-repl
-julia> Pingouin.corr(x, y, alternative="greater", method="pearson")
+julia> Pingouin.corr(x, y, tail=:right, method="pearson")
 ┌ Warning: P-Value not implemented yet in HypothesisTests.jl
 └ @ Main REPL[68]:11
 1×9 DataFrame
@@ -608,7 +608,7 @@ julia> Pingouin.corr(x, y, alternative="greater", method="pearson")
 """
 function corr(x::Array{<:Number},
     y::Array{<:Number};
-    alternative::String = "two-sided",
+    tail::Symbol = :both,
     method::String = "pearson",
     kwargs...)
 
@@ -616,7 +616,7 @@ function corr(x::Array{<:Number},
     x, y = remove_na(x, y, paired = true)
 
     # todo: update when p-values available in hypothesistests.jl
-    @assert alternative in ["two-sided", "greater", "less"] "Alternative must be \"two-sided\",  \"greater\" or \"less\"."
+    @assert tail in [:both, :left, :right] "Tail must be :both, :left or :right."
 
     nx = size(x)[1]
     r = pval = bf10 = pr = NaN
@@ -625,16 +625,16 @@ function corr(x::Array{<:Number},
     if method == "pearson"
         @warn "P-Value not implemented yet in HypothesisTests.jl"
         r = cor(x, y)
-        pval = _correl_pvalue(r, nx, 0, alternative = alternative)
-        bf10 = bayesfactor_pearson(r, nx, alternative = alternative)
+        pval = _correl_pvalue(r, nx, 0, tail = tail)
+        bf10 = bayesfactor_pearson(r, nx, tail = tail)
     elseif method == "spearman"
         @warn "P-Value not implemented yet in HypothesisTests.jl"
         r = corspearman(x, y)
-        pval = _correl_pvalue(r, nx, 0, alternative = alternative)
+        pval = _correl_pvalue(r, nx, 0, tail = tail)
     elseif method == "kendall"
         @warn "P-Value not implemented yet in HypothesisTests.jl"
         r = corkendall(x, y)
-        pval = _correl_pvalue(r, nx, 0, alternative = alternative)
+        pval = _correl_pvalue(r, nx, 0, tail = tail)
     elseif method == "bicor"
         c = get(kwargs, :c, 9.0)
         r, pval = bicor(x, y, c = c)
@@ -678,8 +678,8 @@ function corr(x::Array{<:Number},
             ny = n_clean,
             eftype = "r",
             decimals = 6,
-            alternative = alternative)
-        pr = power_corr(r, nx, nothing, 0.05, alternative = alternative)
+            tail = tail)
+        pr = power_corr(r, nx, nothing, 0.05, tail = tail)
     end
 
     # Compute r2 and adj_r2
@@ -687,8 +687,8 @@ function corr(x::Array{<:Number},
     adj_r2 = 1 - (((1 - r2) * (n_clean - 1)) / (n_clean - 3))
 
     # Recompute p-value if tail is one-sided
-    if alternative != "two-sided"
-        pval = _correl_pvalue(r, n_clean, 0, alternative = alternative)
+    if tail != :both
+        pval = _correl_pvalue(r, n_clean, 0, tail = tail)
     end
 
     return DataFrame(n = nx,
@@ -704,7 +704,7 @@ end
 
 
 """
-    partial_corr(data, x, y, covar, x_covar, y_covar, alternative, method)
+    partial_corr(data, x, y, covar, x_covar, y_covar, tail, method)
 
 Partial and semi-partial correlation.
 
@@ -715,7 +715,7 @@ Arguments
 - `covar::Union{Array{String,1},String}`: Covariate(s). Must be a names of columns in `data`. Use a list if there are two or more covariates.
 - `x_covar::Union{Array{String,1},String}`: Covariate(s) for the `x` variable. This is used to compute semi-partial correlation (i.e. the effect of `x_covar` is removed from `x` but not from `y`). Note that you cannot specify both `covar` and `x_covar`.
 - `y_covar::Union{Array{String,1},String}`: Covariate(s) for the `y` variable. This is used to compute semi-partial correlation (i.e. the effect of `y_covar` is removed from `y` but not from `x`). Note that you cannot specify both `covar` and `y_covar`.
-- `alternative::String`: Specify whether to return `"one-sided"` or `"two-sided"` p-value. Note that the former are simply half the latter.
+- `tail::Symbol`: Specify whether to return `:onesided` or `:both` p-value. Note that the former are simply half the latter.
 - `method::String`: Correlation type:
     * `"pearson"`: Pearson \$r\$ product-moment correlation
     * `"spearman"`: Spearman \$\rho\$ rank-order correlation
@@ -752,7 +752,7 @@ From [1]:
 
 Note that if you are not interested in calculating the statistics and
 p-values but only the partial correlation matrix, a (faster)
-alternative is to use the :py:func:`pingouin.pcorr` method (see example 4).
+alternative is to use the `pingouin.pcorr` method (see example 4).
 
 Rows with missing values are automatically removed from data. Results have
 been tested against the
@@ -807,11 +807,11 @@ function partial_corr(data::DataFrame;
     covar::Union{Array{T,1},Nothing,String,Symbol} = nothing,
     x_covar::Union{Array{T,1},Nothing,String,Symbol} = nothing,
     y_covar::Union{Array{T,1},Nothing,String,Symbol} = nothing,
-    alternative::String = "two-sided",
+    tail::Symbol = :both,
     method::String = "pearson")::DataFrame where {T<:Union{Nothing,String,Symbol}}
     # todo: multiple dispatch
 
-    @assert alternative in ["two-sided", "greater", "less"] "Alternative must be \"two-sided\",  \"greater\" or \"less\"."
+    @assert tail in [:both, :left, :right] "Tail must be :both, :left or :right."
     @assert method in ["pearson", "spearman"] "Method must be \"pearson\" or \"spearman\" for partial correlation."
     @assert size(data)[1] > 2 "Data must have at least 3 samples."
 
@@ -888,13 +888,13 @@ function partial_corr(data::DataFrame;
 
     # Compute the two-sided p-value and confidence intervals
     # https://online.stat.psu.edu/stat505/lesson/6/6.3
-    pval = _correl_pvalue(r, n, k, alternative = alternative)
+    pval = _correl_pvalue(r, n, k, tail = tail)
     ci = compute_esci(stat = r,
         nx = (n - k),
         ny = (n - k),
         eftype = "r",
         decimals = 6,
-        alternative = alternative)
+        tail = tail)
 
     return DataFrame(n = n,
         r = r,
@@ -1057,7 +1057,7 @@ function rm_corr(data::DataFrame,
 end
 
 """
-    distance_corr(x, y[, alternative, n_boot])
+    distance_corr(x, y[, tail, n_boot])
 
 Distance correlation between two arrays.
 
@@ -1066,7 +1066,7 @@ Statistical significance (p-value) is evaluated with a permutation test.
 Arguments
 ---------
 - `x, y::Array{<:Number}`: 1D or 2D input arrays, shape (n_samples, n_features). `x` and `y` must have the same number of samples and must not contain missing values.
-- `alternative::String`: Alternative of the test. Can be either "two-sided", "greater" (default) or "less". To be consistent with the original R implementation, the default is to calculate the one-sided "greater" p-value.
+- `tail::Symbol`: Alternative of the test. Can be either :both, :right (default) or :left. To be consistent with the original R implementation, the default is to calculate the one-sided "greater" p-value.
 - `n_boot::Union{Int,Nothing}`: Number of bootstrap to perform. If nothing, no bootstrapping is performed and the function only returns the distance correlation (no p-value). Default is 1000 (thus giving a precision of 0.001).
 
 Returns
@@ -1153,10 +1153,10 @@ function _dcorr(y::Matrix{<:Number},
 end
 function distance_corr(x::Vector{<:Number},
     y::Vector{<:Number};
-    alternative::String = "greater",
+    tail::Symbol = :right,
     n_boot::Union{Int,Nothing} = 1000)::Tuple{Float64,Union{Float64,Nothing}}
 
-    @assert alternative in ["two-sided", "greater", "less"] "`alternative` must be 'two-sided', 'greater' or 'less'."
+    @assert tail in [:both, :left, :right] "`tail` must be :both, :left, or :right."
     # Check for NaN values
     @assert all(@. !isnan(x)) & all(@. !isnan(y)) "`x` and `y` must not contain NaN values."
     @assert length(x) == length(y) "`x` and `y` must have the same number of samples."
@@ -1164,14 +1164,14 @@ function distance_corr(x::Vector{<:Number},
     x = reshape(x, length(x), 1)
     y = reshape(y, length(y), 1)
 
-    return distance_corr(x, y, alternative = alternative, n_boot = n_boot)
+    return distance_corr(x, y, tail = tail, n_boot = n_boot)
 end
 function distance_corr(x::Matrix{<:Number},
     y::Matrix{<:Number};
-    alternative::String = "greater",
+    tail::Symbol = :right,
     n_boot::Union{Int,Nothing} = 1000)::Tuple{Float64,Union{Float64,Nothing}}
 
-    @assert alternative in ["two-sided", "greater", "less"] "`alternative` must be 'two-sided', 'greater' or 'less'."
+    @assert tail in [:both, :left, :right] "`tail` must be :both, :left, or :right."
     # Check for NaN values
     @assert all(@. !isnan(x)) & all(@. !isnan(y)) "`x` and `y` must not contain NaN values."
     @assert length(x) == length(y) "`x` and `y` must have the same number of samples."
@@ -1196,7 +1196,7 @@ function distance_corr(x::Matrix{<:Number},
             bootstat[i] = _dcorr(y[bootsam[i, :]][:, :], n², A, dcov2_xx)
         end
 
-        pval = _perm_pval(bootstat, dcor, alternative = alternative)
+        pval = _perm_pval(bootstat, dcor, tail = tail)
 
         return dcor, pval
     else

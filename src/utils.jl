@@ -1,5 +1,5 @@
 """
-    _perm_pval(bootstat, estimate[, alternative])
+    _perm_pval(bootstat, estimate[, tail])
 
 Compute p-values from a permutation test.
 
@@ -7,7 +7,7 @@ Arguments
 ---------
 - `bootstat::Vector{<:Number}`: Permation distribution.
 - `estimate::Number`: Point estimate.
-- `alternative::String`: Tail for p-value. One of "two-sided" (default), "less", "greater".
+- `tail::Symbol`: Tail for p-value. One of :both (default), :left, or :right.
 
 Returns
 -------
@@ -15,16 +15,16 @@ Returns
 """
 function _perm_pval(bootstat::Vector{<:Number},
     estimate::Number;
-    alternative::String = "two-sided")::Float64
+    tail::Symbol = :both)::Float64
 
-    @assert alternative in ["two-sided", "less", "greater"] "Alternative must be \"two-sided\", \"less\" or \"greater\"."
+    @assert tail in [:both, :left, :right] "`tail` must be :both, :left, or :right."
 
     n_boot = length(bootstat)
     @assert n_boot > 0 "Bootstrap distribution must have at least one element."
 
-    if (alternative == "greater")
+    if tail == :right
         pval = sum(bootstat .>= estimate) / n_boot
-    elseif (alternative == "less")
+    elseif tail == :left
         pval = sum(bootstat .<= estimate) / n_boot
     else
         pval = sum(abs.(bootstat) .>= abs(estimate)) / n_boot

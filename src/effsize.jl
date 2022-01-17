@@ -431,7 +431,7 @@ end
 
 
 """
-    compute_esci(stat, nx, ny[, paired, eftype, confidence, decimals])
+    compute_esci(stat, nx, ny[, paired, eftype, confidence, decimals, tail])
 
 Parametric confidence intervals around a Cohen d or a
 correlation coefficient.
@@ -444,7 +444,7 @@ Arguments
 - `eftype::String`: Effect size type. Must be `"r"` (correlation) or `"cohen"` (Cohen d or Hedges g).
 - `confidence::Float64`: Confidence level (0.95 = 95%)
 - `decimals::Int64`: Number of rounded decimals.
-- `alternative::String`: Defines the alternative hypothesis, or tail for the correlation coefficient. Must be one of "two-sided" (default), "greater" or "less". This parameter only has an effect if `eftype` is "r".
+- `tail::Symbol`: Defines the alternative hypothesis, or tail for the correlation coefficient. Must be one of :both (default), :left or :right. This parameter only has an effect if `eftype` is "r".
 
 Returns
 -------
@@ -542,22 +542,22 @@ function compute_esci(; stat::Union{Float64,Nothing} = nothing,
     eftype::String = "cohen",
     confidence::Float64 = 0.95,
     decimals::Int64 = 2,
-    alternative::String = "two-sided")::Array{Float64}
+    tail::Symbol = :both)::Array{Float64}
     @assert eftype in ["r", "pearson", "spearman", "cohen", "d", "g", "hedges"]
     @assert (stat !== nothing) && (nx !== nothing)
     @assert 0 < confidence < 1
-    @assert alternative in ["two-sided", "greater", "less"] "alternative must be one of 'two-sided', 'greater' or 'less'"
+    @assert tail in [:both, :left, :right] "`tail` must be :both, :left, or :right."
 
     if eftype in ["r", "pearson", "spearman"]
         z = atanh(stat)
         se = 1 / sqrt(nx - 3)
-        if alternative == "two-sided"
+        if tail == :both
             crit = abs(quantile(Normal(), (1 - confidence) / 2))
             ci_z = [z - crit * se, z + crit * se]
-        elseif alternative == "greater"
+        elseif tail == :right
             crit = quantile(Normal(), confidence)
             ci_z = [z - crit * se, Inf]
-        elseif alternative == "less"
+        elseif tail == :left
             crit = quantile(Normal(), confidence)
             ci_z = [-Inf, z + crit * se]
         end
